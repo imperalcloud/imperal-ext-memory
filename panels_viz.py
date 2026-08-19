@@ -40,13 +40,10 @@ _MAX_FOCUS_SYMS = 12
 _MAX_LANGS = 6
 _MAX_KINDS = 4
 
-# Cytoscape sizes nodes through mapData(size, min_node_size, max_node_size).
-# A `size` outside that domain is extrapolated rather than clamped, which is
-# how a graph ends up with degenerate geometry and never finishes painting —
-# no canvas at all, so an image export has nothing to export either. The one
-# graph already rendering in this host keeps every value inside its declared
-# domain, so these two numbers are the single source of truth for both the
-# node values and the props.
+# Cytoscape sizes nodes via mapData(size, min_node_size, max_node_size), which
+# EXTRAPOLATES outside that domain instead of clamping — one oversized node is
+# enough to leave the whole graph unpainted (blank frame, and no canvas for an
+# image export either). One source of truth for both the values and the props.
 _NODE_MIN = 20.0
 _NODE_MAX = 70.0
 
@@ -232,15 +229,16 @@ def index_graph(d: dict, repo_label: str, focus: str = "") -> ui.UINode | None:
         on_node_click=_nav(_omit=("node_id",),
                            repo=str(d.get("_repo_key") or "")),
     )
-    # The SDK has no `animate` prop; the renderer reads props.animate (default
-    # true). Off = the layout settles inside the frame instead of floating out.
-    # The working graph in this host injects it exactly the same way.
-    graph.props["animate"] = False
+    # NOTHING is injected into graph.props. The platform defines the Graph
+    # contract as exactly the props passed above; "animate" is not one of them.
+    # An earlier version set it by hand, copied from another extension: that
+    # slips past validation (which reads ui.* CALL arguments, not later
+    # assignments) and ships the renderer an undefined prop.
 
     # Section, NOT Card. The proven graph sits in Stack > Section > Graph, and
-    # the Chart in this very panel — which does render — is inside a Section
-    # too. A Card lays its content out through its own wrapper, and a canvas
-    # that must measure itself is exactly the thing that suffers from that.
+    # the Chart in this panel — which does render — is in a Section too. A Card
+    # lays content out through its own wrapper, which is exactly what a canvas
+    # that must measure itself suffers from.
     return ui.Section(
         title="Structure graph",
         children=[*head, graph],

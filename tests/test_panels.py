@@ -220,9 +220,10 @@ async def test_graph_node_ids_are_selector_safe(redis_mock, make_ctx, seed_index
 
     assert "'id': 'file::" not in out
     assert "type='Graph'" in out
-    # concentric + animate off = lands inside the viewport instead of drifting
+    # A layout the component actually supports. "animate" is deliberately NOT
+    # asserted (nor sent): it is not part of the Graph contract — see
+    # test_graph_render.py, which pins the prop set exactly.
     assert "'layout': 'concentric'" in out
-    assert "'animate': False" in out
 
 
 @pytest.mark.asyncio

@@ -97,3 +97,46 @@ async def test_graph_is_not_wrapped_in_a_card(redis_mock, make_ctx, seed_index):
     assert "Graph" in chain, "no graph rendered"
     assert "Card" not in chain, f"graph is wrapped in a Card: {' > '.join(chain)}"
     assert "Section" in chain, f"graph should sit in a Section: {' > '.join(chain)}"
+
+
+# The platform states the Graph component's contract as an exact set of props.
+# Anything else is undefined behaviour for the renderer, and the deploy check
+# cannot catch it: that check reads the arguments of ui.* CALLS, so a prop
+# assigned onto .props afterwards is invisible to it. Hence this test.
+_GRAPH_CONTRACT = {
+    "nodes", "edges", "layout", "height", "min_node_size", "max_node_size",
+    "edge_label_visible", "color_by", "on_node_click",
+}
+
+
+@pytest.mark.asyncio
+async def test_graph_passes_only_props_the_platform_defines(
+        redis_mock, make_ctx, seed_index):
+    """No undocumented prop may reach the renderer.
+
+    A previous version injected graph.props["animate"] = False by hand, copied
+    from another extension. It passed validation and shipped the frontend a
+    prop the platform never promised to understand.
+    """
+    seed_index("imp_u_TEST", "abc123",
+               languages={"python": 1429},
+               symbol_kinds={"function": 10081},
+               top_symbols=["build_audit (function) @ imperal-ext-admin/panels_audit.py:148"])
+
+    g = _graph_of(await panels.memory_panel(make_ctx("imp_u_TEST"), repo="abc123"))
+    assert g is not None
+
+    extra = set(g.props) - _GRAPH_CONTRACT
+    assert not extra, f"undocumented Graph prop(s) sent to the renderer: {sorted(extra)}"
+
+
+@pytest.mark.asyncio
+async def test_graph_layout_is_one_the_component_supports(
+        redis_mock, make_ctx, seed_index):
+    """layout must be one of the five Cytoscape algorithms the SDK lists."""
+    seed_index("imp_u_TEST", "abc123",
+               top_symbols=["main (function) @ probe_stream_terminals.py:17"])
+
+    g = _graph_of(await panels.memory_panel(make_ctx("imp_u_TEST"), repo="abc123"))
+    assert g.props["layout"] in {
+        "cose-bilkent", "circle", "grid", "breadthfirst", "concentric"}
