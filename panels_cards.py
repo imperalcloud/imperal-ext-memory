@@ -58,8 +58,16 @@ def _index_card(d: dict) -> ui.Card:
     return ui.Card(title="Code index", content=ui.Stack(direction="v", gap=2, children=content))
 
 
-def _notes_card(repo_key: str, entries: list) -> ui.Card:
-    """Durable notes — every one editable and deletable by its owner."""
+def _notes_card(repo_key: str, entries: list, editing: int = 0) -> ui.Card:
+    """Durable notes — every one editable and deletable by its owner.
+
+    ``editing`` is the 1-based position currently being edited: that note
+    renders as a form pre-filled with its own text instead of a read-only
+    block. The Edit button used to call ``edit_note`` directly with the text
+    it already had, which dutifully saved the note unchanged and reported
+    "was: X now: X" — a no-op that looked like a broken button. A write tool
+    cannot prompt for input, so the panel has to supply the field first.
+    """
     children = [
         ui.Alert(type="info", message=(
             f"Editable. Notes are distilled at the end of a coding turn, kept for "
@@ -83,15 +91,41 @@ def _notes_card(repo_key: str, entries: list) -> ui.Card:
             origin = "you edited" if e.get("edited_at") else "distilled"
             ref = str(e.get("distilled_git_ref") or "")[:12]
             meta = f"{origin} {written}" + (f" @ {ref}" if ref else "")
+
+            if idx == editing:
+                # value= pre-fills the textarea with the CURRENT text, so the
+                # user edits the real note instead of retyping it from scratch.
+                rows.append(ui.Section(title=f"#{idx} · editing", children=[
+                    ui.Form(
+                        action="edit_note",
+                        submit_label="Save this note",
+                        defaults={"repo": repo_key, "position": idx},
+                        children=[
+                            ui.TextArea(param_name="note", value=text, rows=6,
+                                        label=f"Note #{idx} (max {NOTE_CHARS} chars)",
+                                        description="Secrets are stripped automatically "
+                                                    "before saving.",
+                                        required=True),
+                        ],
+                    ),
+                    ui.Button(label="Cancel", variant="ghost", size="sm",
+                              on_click=ui.Call("__panel__memory", repo=repo_key)),
+                ]))
+                continue
+
             rows.append(ui.Section(title=f"#{idx} · {meta}", children=[
                 ui.Text(content=text),
                 ui.Text(content=("cites: " + ", ".join(cites)) if cites else "no file cited"),
                 ui.Stack(direction="h", gap=1, children=[
+                    # Both controls re-render THIS panel with a parameter —
+                    # edit opens the form, forget opens a confirmation modal.
+                    # Neither mutates anything on the first click.
                     ui.Button(label="Edit", variant="secondary", icon="Pencil",
-                              on_click=ui.Call("edit_note",
-                                               position=idx, repo=repo_key, note=text)),
+                              on_click=ui.Call("__panel__memory",
+                                               repo=repo_key, edit=str(idx))),
                     ui.Button(label="Forget", variant="danger", icon="Trash2",
-                              on_click=ui.Call("delete_note", position=idx, repo=repo_key)),
+                              on_click=ui.Call("__panel__memory",
+                                               repo=repo_key, forget=str(idx))),
                 ]),
             ]))
         children.append(ui.Stack(direction="v", gap=2, children=rows))

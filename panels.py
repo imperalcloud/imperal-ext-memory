@@ -25,6 +25,8 @@ from panels_cards import _index_card, _notes_card  # noqa: F401
 from panels_common import _empty, _err, _inventory  # noqa: F401
 from panels_memory import memory_panel  # noqa: F401
 from panels_repos import repos_panel  # noqa: F401
-from panels_storage import storage_panel  # noqa: F401
+from panels_storage import storage_body, storage_panel  # noqa: F401
+from panels_viz import index_charts, index_graph  # noqa: F401
 
-__all__ = ["repos_panel", "memory_panel", "storage_panel"]
+__all__ = ["repos_panel", "memory_panel", "storage_panel", "storage_body",
+           "index_graph", "index_charts"]

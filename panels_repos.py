@@ -48,7 +48,10 @@ async def repos_panel(ctx, **kwargs):
                 ui.Stat(label="Notes", value=str(total_notes)),
             ]),
             ui.Button(label="How is this stored?", variant="secondary", icon="HelpCircle",
-                      on_click=ui.Call("__panel__storage")),
+                      # Routed through the memory panel as a section: a second
+                      # slot="center" panel is not reliably mounted, so calling
+                      # __panel__storage directly did nothing at all on click.
+                      on_click=ui.Call("__panel__memory", section="storage")),
         ])),
     ]
 
