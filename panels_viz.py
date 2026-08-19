@@ -40,6 +40,16 @@ _MAX_FOCUS_SYMS = 12
 _MAX_LANGS = 6
 _MAX_KINDS = 4
 
+# Cytoscape sizes nodes through mapData(size, min_node_size, max_node_size).
+# A `size` outside that domain is extrapolated rather than clamped, which is
+# how a graph ends up with degenerate geometry and never finishes painting —
+# no canvas at all, so an image export has nothing to export either. The one
+# graph already rendering in this host keeps every value inside its declared
+# domain, so these two numbers are the single source of truth for both the
+# node values and the props.
+_NODE_MIN = 20.0
+_NODE_MAX = 70.0
+
 
 def parse_symbols(top_symbols) -> list[dict]:
     """Turn raw ``top_symbols`` strings into {name, kind, path, line} dicts."""
@@ -92,7 +102,7 @@ def _leaf(path: str) -> str:
     return parts[-1] if parts else "?"
 
 
-def index_graph(d: dict, repo_label: str, focus: str = "") -> ui.Card | None:
+def index_graph(d: dict, repo_label: str, focus: str = "") -> ui.UINode | None:
     """The repo's structure as a clickable graph. None when nothing to draw."""
     order = file_order(d)
     if not order:
@@ -196,17 +206,27 @@ def index_graph(d: dict, repo_label: str, focus: str = "") -> ui.Card | None:
         head.append(ui.Button(label="← Back to full graph", variant="ghost",
                               size="sm", on_click=_nav(repo=str(d.get("_repo_key") or ""))))
 
+    # Every node value into the declared domain, keeping the tiers' relative
+    # order. The repo node was 100 against a ceiling of 68 — the biggest node
+    # in the graph was also the most out-of-range one.
+    for n in nodes:
+        try:
+            raw = float(n.get("size") or _NODE_MIN)
+        except (TypeError, ValueError):
+            raw = _NODE_MIN
+        n["size"] = max(_NODE_MIN, min(_NODE_MAX, raw))
+
     graph = ui.Graph(
         nodes=nodes,
         edges=edges,
         # Deterministic and viewport-friendly, like the one graph already
         # working in this host. cose-bilkent drifts on first paint.
         layout="concentric",
-        height=440,
+        height=600,
         color_by="type",
         edge_label_visible=True,
-        min_node_size=16,
-        max_node_size=68,
+        min_node_size=_NODE_MIN,
+        max_node_size=_NODE_MAX,
         # node_id is injected by ui.Graph itself, so it must NOT be blanked by
         # the action — hence _omit.
         on_node_click=_nav(_omit=("node_id",),
@@ -214,11 +234,16 @@ def index_graph(d: dict, repo_label: str, focus: str = "") -> ui.Card | None:
     )
     # The SDK has no `animate` prop; the renderer reads props.animate (default
     # true). Off = the layout settles inside the frame instead of floating out.
+    # The working graph in this host injects it exactly the same way.
     graph.props["animate"] = False
 
-    return ui.Card(
+    # Section, NOT Card. The proven graph sits in Stack > Section > Graph, and
+    # the Chart in this very panel — which does render — is inside a Section
+    # too. A Card lays its content out through its own wrapper, and a canvas
+    # that must measure itself is exactly the thing that suffers from that.
+    return ui.Section(
         title="Structure graph",
-        content=ui.Stack(direction="v", gap=1, children=[*head, graph]),
+        children=[*head, graph],
     )
 
 
