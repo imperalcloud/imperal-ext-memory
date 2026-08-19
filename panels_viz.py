@@ -217,8 +217,14 @@ def index_graph(d: dict, repo_label: str, focus: str = "") -> ui.UINode | None:
     graph = ui.Graph(
         nodes=nodes,
         edges=edges,
-        # Deterministic; cose-bilkent drifts out of frame on first paint.
-        layout="concentric",
+        # Grid by default: deterministic (cose-bilkent drifts out of frame on
+        # first paint) AND the most readable of the deterministic options.
+        # Measured in headless Chromium on this panel's real 14-node payload,
+        # 900x600, with the shipped DGraph tuning:
+        #   concentric -> box 423x336, fit 1.61, label 20.9px, 14/14 in frame
+        #   grid       -> box 411x195, fit 2.04, label 26.6px, 14/14 in frame
+        # Users can still switch layout from the picker in the graph toolbar.
+        layout="grid",
         height=600,
         color_by="type",
         edge_label_visible=True,
