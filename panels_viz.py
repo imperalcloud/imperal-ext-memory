@@ -142,17 +142,23 @@ def index_charts(d: dict) -> ui.Card | None:
     if not langs and not kinds:
         return None
 
+    # Titles live on a wrapping ui.Section, NOT on ui.Chart: the SDK deployed on
+    # the platform accepts only data/type/x_key/height/colors/y2_keys, and a
+    # newer local SDK that also takes title=/show_legend= will happily validate
+    # code the worker then rejects. Section is the portable way to label a chart.
     blocks = []
     if langs:
         rows = [{"name": k, "files": v} for k, v in
                 sorted(langs.items(), key=lambda kv: kv[1], reverse=True)[:8]]
-        blocks.append(ui.Chart(data=rows, type="bar", x_key="name", height=180,
-                               title="Files by language", show_legend=False))
+        blocks.append(ui.Section(title="Files by language", children=[
+            ui.Chart(data=rows, type="bar", x_key="name", height=180),
+        ]))
     if kinds:
         rows = [{"name": k, "symbols": v} for k, v in
                 sorted(kinds.items(), key=lambda kv: kv[1], reverse=True)[:8]]
-        blocks.append(ui.Chart(data=rows, type="bar", x_key="name", height=180,
-                               title="Symbols by kind", show_legend=False))
+        blocks.append(ui.Section(title="Symbols by kind", children=[
+            ui.Chart(data=rows, type="bar", x_key="name", height=180),
+        ]))
 
     return ui.Card(title="Index at a glance",
                    content=ui.Stack(direction="v", gap=2, children=blocks))
