@@ -16,12 +16,14 @@ validator's 300-line ceiling); this module re-exports them so that importing
   handlers_reads    list_repos / get_index / list_notes
   handlers_explain  explain_memory
   handlers_writes   add_note / edit_note / delete_note
+  handlers_purge    delete_repo — erases one repo's memory entirely
 """
 from __future__ import annotations
 
 from handlers_params import (  # noqa: F401
     AddNoteParams,
     DeleteNoteParams,
+    DeleteRepoParams,
     EditNoteParams,
     EmptyParams,
     RepoParams,
@@ -40,9 +42,11 @@ from handlers_writes import (  # noqa: F401
     fn_delete_note,
     fn_edit_note,
 )
+from handlers_purge import fn_delete_repo  # noqa: F401
 
 __all__ = [
-    "AddNoteParams", "DeleteNoteParams", "EditNoteParams", "EmptyParams",
-    "RepoParams", "fn_list_repos", "fn_get_index", "fn_list_notes",
-    "fn_explain_memory", "fn_add_note", "fn_edit_note", "fn_delete_note",
+    "AddNoteParams", "DeleteNoteParams", "DeleteRepoParams", "EditNoteParams",
+    "EmptyParams", "RepoParams", "fn_list_repos", "fn_get_index",
+    "fn_list_notes", "fn_explain_memory", "fn_add_note", "fn_edit_note",
+    "fn_delete_note", "fn_delete_repo",
 ]

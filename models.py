@@ -159,6 +159,38 @@ class NoteOpRecord(sdl.Entity):
         return d
 
 
+class PurgeRecord(sdl.Entity):
+    """Outcome of erasing ONE repo's memory — a verified fact, not an intent.
+
+    ``verified`` is the result of a fresh keyspace scan performed AFTER the
+    delete, and ``leftover_keys`` names anything that survived it. They are
+    modelled as first-class fields precisely so the answer cannot claim a
+    clean wipe while something remains: if the re-scan finds a key, the
+    record says so and the narrator has to report it.
+    """
+
+    repo_key: Optional[str] = None
+    repo_label: Optional[str] = None
+    had_index: Optional[bool] = None
+    had_notes: Optional[bool] = None
+    notes_removed: Optional[int] = None
+    keys_deleted: Optional[int] = None
+    leftover_keys: Optional[list] = None
+    verified: Optional[bool] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _c(cls, d):
+        if isinstance(d, dict):
+            key = d.get("repo_key") or ""
+            d.setdefault("id", key or "repo-purge")
+            label = d.get("repo_label") or key or "repo"
+            n = int(d.get("keys_deleted") or 0)
+            d.setdefault("title", f"Erased {label} — {n} key{'' if n == 1 else 's'} removed")
+            d.setdefault("kind", "repo_purge")
+        return d
+
+
 class MemoryExplainerRecord(sdl.Entity):
     """Where each piece of repo memory lives and when it updates — live numbers."""
 

@@ -26,6 +26,7 @@ class FakeRedis:
         self.store = store
         self.closed = False
         self.set_calls: list[tuple[str, str, int | None]] = []
+        self.deleted: list[str] = []
 
     async def get(self, key):
         return self.store.get(key)
@@ -40,6 +41,24 @@ class FakeRedis:
         for key in list(self.store):
             if fnmatch.fnmatch(key, match):
                 yield key
+
+    async def exists(self, *keys):
+        return sum(1 for k in keys if k in self.store)
+
+    async def delete(self, *keys):
+        """Return the number of keys ACTUALLY removed, like real Redis.
+
+        Real DEL counts only keys that existed, and purge_repo reports that
+        number to the user — a fake that counted its arguments instead would
+        make a half-empty repo look fully wiped in every test.
+        """
+        removed = 0
+        for k in keys:
+            if k in self.store:
+                del self.store[k]
+                removed += 1
+                self.deleted.append(k)
+        return removed
 
     async def aclose(self):
         self.closed = True

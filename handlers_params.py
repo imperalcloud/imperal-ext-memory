@@ -57,6 +57,13 @@ class DeleteNoteParams(BaseModel):
         description="Which repo — repo_key or path fragment. Empty = most recent.")
 
 
+class DeleteRepoParams(BaseModel):
+    repo: str = Field(
+        description=("Which repo to erase — its repo_key, or a fragment of its "
+                     "path/name. Required: erasing whatever happens to be most "
+                     "recent would be a coin flip with the user's memory."))
+
+
 def _entry_written(e: dict) -> str:
     return age(e.get("edited_at") or e.get("distilled_at"))
 

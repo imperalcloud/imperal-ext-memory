@@ -27,7 +27,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 import time
 
 import redis.asyncio as aioredis
@@ -103,58 +102,19 @@ async def get_redis() -> aioredis.Redis:
     return aioredis.from_url(REDIS_URL, decode_responses=True)
 
 
-# ── Safety pipeline — mirrors imperal_kernel/core/repo_memory.py ──────
-# A note written here is re-injected into the coding brain's prompt on later
-# turns. Without these two transforms a panel edit would be a stored
-# prompt-injection vector with a 90-day TTL, so they are NOT optional.
-
-_SECRET_URI_USERINFO_RE = re.compile(r"(?i)\b[a-z][a-z0-9+.-]*://[^\s:@/]+:[^\s@/]+@")
-_SECRET_KEYWORD_RE = re.compile(
-    r"""(?i)(api[_-]?key|secret|token|password|passwd|authorization|bearer)["']?\s*[:=]\s*["']?[^\s"']+""")
-_SECRET_BEARER_RE = re.compile(r"(?i)bearer\s+[A-Za-z0-9._-]{10,}")
-_SECRET_JWT_RE = re.compile(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
-_SECRET_PREFIXED_KEY_RE = re.compile(r"\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{10,}")
-_SECRET_GCP_KEY_RE = re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")
-_SECRET_RE = re.compile(
-    r"AKIA[0-9A-Z]{16}|-----BEGIN[ A-Z]+PRIVATE KEY-----|gh[pousr]_[A-Za-z0-9]{20,}"
-    r"|xox[baprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9]{20,}")
-
-_FENCE_OPEN_RE = re.compile(r"<{3,}")
-_FENCE_CLOSE_RE = re.compile(r">{3,}")
-
-
-def scrub_secrets(text: str) -> str:
-    """Redact common secret/token shapes before persisting a note."""
-    s = str(text or "")
-    s = _SECRET_URI_USERINFO_RE.sub("[REDACTED]@", s)
-    s = _SECRET_BEARER_RE.sub("[REDACTED]", s)
-    s = _SECRET_KEYWORD_RE.sub("[REDACTED]", s)
-    s = _SECRET_JWT_RE.sub("[REDACTED]", s)
-    s = _SECRET_PREFIXED_KEY_RE.sub("[REDACTED]", s)
-    s = _SECRET_GCP_KEY_RE.sub("[REDACTED]", s)
-    s = _SECRET_RE.sub("[REDACTED]", s)
-    return s
-
-
-def neutralize_fence(text) -> str:
-    """Neutralize ``<<< >>>`` DATA-fence delimiters in stored text.
-
-    The coding brain renders stored notes inside a ``<<< >>>`` DATA fence. A
-    note containing a newline + ``>>>`` would close that fence early and let
-    the remainder render as a top-level directive to a tool-wielding agent.
-    Newlines collapse to spaces FIRST so no content can forge a standalone
-    delimiter line.
-    """
-    s = str(text or "")
-    s = s.replace("\r\n", "\n").replace("\r", "\n").replace("\n", " ")
-    s = _FENCE_OPEN_RE.sub("\u2039\u2039\u2039", s)
-    s = _FENCE_CLOSE_RE.sub("\u203a\u203a\u203a", s)
-    return s
+# ── Safety pipeline ───────────────────────────────────────────────────
+# Lives in safety.py (mirrors imperal_kernel/core/repo_memory.py) and is
+# re-exported here so callers keep importing it from one place. sanitize_note
+# is wrapped rather than aliased: safety.py takes the clamp length as an
+# argument to stay dependency-free, while NOTE_CHARS — part of the kernel
+# storage contract — belongs to this module.
+from safety import neutralize_fence, scrub_secrets  # noqa: E402,F401
+from safety import sanitize_note as _sanitize_note  # noqa: E402
 
 
 def sanitize_note(text: str) -> str:
     """Full write pipeline for one note: scrub -> defuse -> clamp."""
-    return neutralize_fence(scrub_secrets(text)).strip()[:NOTE_CHARS]
+    return _sanitize_note(text, NOTE_CHARS)
 
 
 # ── Shared read helpers ───────────────────────────────────────────────
@@ -270,6 +230,57 @@ async def save_entries(uid: str, repo_key: str, entries: list) -> None:
         await r.set(f"{MEMORY_PREFIX}{uid}:{repo_key}", payload, ex=REPO_MEM_TTL)
     finally:
         await r.aclose()
+
+
+async def purge_repo(uid: str, repo_key: str) -> dict:
+    """Delete EVERY stored trace of one repo for this user, then VERIFY.
+
+    Repo memory lives in exactly two Redis key families and nowhere else —
+    verified against the kernel source (core/repo_memory.py,
+    core/repo_index_map.py) AND against the live keyspace: there is no SQL
+    table and no separate vector store behind it. ``embedded_chunks`` in the
+    index map is a COPIED COUNT reported by the terminal client, not a
+    pointer to another store, so removing these two keys leaves nothing.
+
+    Deliberately three phases — count, delete, re-scan — because a delete
+    that only reports its own intent is not a guarantee. ``verified`` is the
+    result of a fresh scan AFTER the delete, so the caller can state truth
+    rather than hope. Both keys are deleted even when only one exists (the
+    orphaned note-sets from the old repo_key formula have no index at all).
+    """
+    index_key = f"{INDEX_PREFIX}{uid}:{repo_key}"
+    memory_key = f"{MEMORY_PREFIX}{uid}:{repo_key}"
+
+    r = await get_redis()
+    try:
+        had_index = bool(await r.exists(index_key))
+        had_memory = bool(await r.exists(memory_key))
+        note_count = 0
+        if had_memory:
+            try:
+                payload = json.loads(await r.get(memory_key) or "{}")
+                note_count = len(payload.get("entries") or [])
+            except (ValueError, TypeError):
+                note_count = 0
+
+        deleted = int(await r.delete(index_key, memory_key))
+
+        # Re-scan rather than trust the delete's own return value.
+        leftovers = [
+            k async for k in r.scan_iter(match=f"*:{uid}:{repo_key}", count=200)
+        ]
+    finally:
+        await r.aclose()
+
+    return {
+        "repo_key": repo_key,
+        "had_index": had_index,
+        "had_notes": had_memory,
+        "notes_removed": note_count,
+        "keys_deleted": deleted,
+        "leftover_keys": leftovers,
+        "verified": not leftovers,
+    }
 
 
 @ext.health_check
