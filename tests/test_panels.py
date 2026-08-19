@@ -223,7 +223,13 @@ async def test_graph_node_ids_are_selector_safe(redis_mock, make_ctx, seed_index
     # A layout the component actually supports. "animate" is deliberately NOT
     # asserted (nor sent): it is not part of the Graph contract — see
     # test_graph_render.py, which pins the prop set exactly.
-    assert "'layout': 'concentric'" in out
+    #
+    # Grid, not concentric: measured on the real 14-node payload at 900x600,
+    # grid renders the labels at 26.6px against concentric's 20.9px, with all
+    # 14 nodes in frame either way. The panel must ASK for it explicitly —
+    # relying on the component default would leave the layout at the mercy of
+    # whatever ui-kit ships next.
+    assert "'layout': 'grid'" in out
 
 
 @pytest.mark.asyncio

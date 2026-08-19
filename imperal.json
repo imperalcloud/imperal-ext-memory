@@ -1,6 +1,6 @@
 {
   "manifest_schema_version": 3,
-  "sdk_version": "5.9.16",
+  "sdk_version": "5.9.23",
   "app_id": "memory-index",
   "version": "1.0.0",
   "name": "Memory & Index",
