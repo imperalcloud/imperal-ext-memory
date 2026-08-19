@@ -44,8 +44,12 @@ def _err(message: str) -> ui.Stack:
 
 
 def _empty(title: str, message: str) -> ui.Stack:
+    """Empty state. ui.Empty carries only the message, so the headline is a
+    separate ui.Header — the component takes (message, icon, action) and
+    silently has no title/description slot."""
     return ui.Stack(direction="v", gap=2, children=[
-        ui.Empty(title=title, description=message),
+        ui.Header(text=title, level=3),
+        ui.Empty(message=message, icon="BrainCircuit"),
     ])
 
 
@@ -115,14 +119,14 @@ async def repos_panel(ctx, **kwargs):
 
     children = [
         ui.Card(title="What Webbee remembers", content=ui.Stack(direction="v", gap=1, children=[
-            ui.Stats(items=[
-                {"label": "Repos", "value": str(len(rows))},
-                {"label": "Indexed", "value": str(indexed)},
-                {"label": "With notes", "value": str(noted)},
-                {"label": "Notes", "value": str(total_notes)},
+            ui.Stats(children=[
+                ui.Stat(label="Repos", value=str(len(rows))),
+                ui.Stat(label="Indexed", value=str(indexed)),
+                ui.Stat(label="With notes", value=str(noted)),
+                ui.Stat(label="Notes", value=str(total_notes)),
             ]),
             ui.Button(label="How is this stored?", variant="secondary", icon="HelpCircle",
-                      on_click=ui.Open("storage")),
+                      on_click=ui.Call("__panel__storage")),
         ])),
     ]
 
@@ -139,7 +143,7 @@ async def repos_panel(ctx, **kwargs):
             id=r["repo_key"],
             title=repo_name(r["repo_root"], r["repo_key"]),
             subtitle=" · ".join(badges) + (f" · indexed {r['indexed']}" if r["has_index"] else ""),
-            on_click=ui.Open("memory", params={"repo": r["repo_key"]}),
+            on_click=ui.Call("__panel__memory", repo=r["repo_key"]),
         ))
 
     children.append(ui.Section(title="Repositories", children=[ui.List(items=items)]))
@@ -197,8 +201,9 @@ def _notes_card(repo_key: str, entries: list) -> ui.Card:
 
     if not entries:
         children.append(ui.Empty(
-            title="No notes for this repo yet",
-            description="They appear automatically as Webbee works in this repository."))
+            message=("No notes for this repo yet — they appear automatically as "
+                     "Webbee works in this repository."),
+            icon="BrainCircuit"))
     else:
         rows = []
         for idx, e in enumerate(entries, start=1):
@@ -225,11 +230,12 @@ def _notes_card(repo_key: str, entries: list) -> ui.Card:
 
     children.append(ui.Section(title="Teach Webbee something", children=[
         ui.Form(
-            id="add-note",
+            action="add_note",
             submit_label="Remember this",
-            on_submit=ui.Call("add_note", repo=repo_key),
+            defaults={"repo": repo_key},
             children=[
-                ui.TextArea(name="note", label=f"Fact about this repo (max {NOTE_CHARS} chars)",
+                ui.TextArea(param_name="note", rows=3,
+                            label=f"Fact about this repo (max {NOTE_CHARS} chars)",
                             placeholder="e.g. deploys go through deploy.sh, never edit current/"),
             ],
         ),
@@ -267,7 +273,7 @@ async def memory_panel(ctx, **kwargs):
     entries = [e for e in ((mem or {}).get("entries") or []) if isinstance(e, dict)]
 
     children = [
-        ui.Header(title=repo_name(root, repo_key),
+        ui.Header(text=repo_name(root, repo_key),
                   subtitle=root or f"repo key {repo_key}"),
     ]
     if idx is not None:
@@ -343,13 +349,13 @@ async def storage_panel(ctx, **kwargs):
     ]
 
     children = [
-        ui.Header(title="Where your repo memory lives",
+        ui.Header(text="Where your repo memory lives",
                   subtitle="Every store, who writes it, and when it changes"),
-        ui.Stats(items=[
-            {"label": "Indexed repos", "value": str(len(index_keys))},
-            {"label": "Repos with notes", "value": str(len(note_keys))},
-            {"label": "Total notes", "value": str(total_notes)},
-            {"label": "Retention", "value": f"{_RETENTION_DAYS}d"},
+        ui.Stats(children=[
+            ui.Stat(label="Indexed repos", value=str(len(index_keys))),
+            ui.Stat(label="Repos with notes", value=str(len(note_keys))),
+            ui.Stat(label="Total notes", value=str(total_notes)),
+            ui.Stat(label="Retention", value=f"{_RETENTION_DAYS}d"),
         ]),
     ]
     children.extend(stores)
