@@ -1,9 +1,26 @@
-"""Memory & Index · Center panel — one repo in full.
+"""Memory & Index · Center panel — the ONE center surface.
 
-Split out of ``panels.py`` (the deploy validator warns above 300 lines).
-Panels register via the ``@ext.panel`` decorator at import time, so
-``panels.py`` imports every part — importing it registers all three panels
-exactly as before.
+Exactly one panel may own the center slot (two competing ``slot="center"``
+panels silently blank whichever loses it), so every view lives here and is
+selected by view state:
+
+    (nothing)              → overview: every repo, as openable cards
+    repo=<key>             → that repo in full: graph, charts, index, notes
+    section=storage        → the storage explainer
+    repo=… & confirm=1     → erase-repo confirmation, layered ON TOP
+    repo=… & edit=N        → editing window for note N, layered ON TOP
+    repo=… & forget=N      → forget-note confirmation, layered ON TOP
+
+MODALS ARE OVERLAYS, NOT REPLACEMENTS. The previous version returned the modal
+INSTEAD of the view, so opening Edit blanked the whole section behind it and
+felt like a full reload. ``ui.Modal`` layers over the current panel, so the
+repo view is built once and the window is appended on top of it — the content
+underneath stays exactly where it was, and only a save changes it.
+
+EVERY VIEW HAS A ← BACK. Each one goes exactly one step: a modal back to its
+repo, a repo back to the overview, the explainer back to wherever it was
+opened from. The overview is the root, which is also why it exists: without it
+"no repo" fell back to the first repo, so back had nowhere honest to land.
 """
 from __future__ import annotations
 
@@ -14,8 +31,15 @@ from imperal_sdk import ui
 from app import _user_id, ext, load_indexes, load_memories, pick, repo_name
 from panels_cards import _index_card, _notes_card
 from panels_common import _empty, _err, _nav
+from panels_modals import (
+    edit_note_modal,
+    erase_repo_modal,
+    forget_note_modal,
+    token_matches,
+)
+from panels_overview import overview_body
 from panels_storage import storage_body
-from panels_viz import index_charts, index_graph
+from panels_viz import graph_focus_path, index_charts, index_graph
 
 log = logging.getLogger("memory-index")
 
@@ -28,33 +52,44 @@ def _pos(value) -> int:
         return 0
 
 
-def _focus_from_node(node_id) -> str:
-    """Turn a clicked graph node id back into a file path to focus on.
+def _truthy(value) -> bool:
+    return str(value or "").strip().lower() in ("1", "true", "yes", "on")
 
-    ``ui.Graph`` injects the clicked node's id as ``node_id``. Only file nodes
-    are meaningful to focus (``file::<path>``); clicking a symbol or the repo
-    node clears the focus rather than drilling into something that has no
-    deeper level in the index.
-    """
-    s = str(node_id or "")
-    return s[6:] if s.startswith("file::") else ""
+
+def _back(label: str, action) -> ui.UINode:
+    """The one back control, so every view's ← looks and behaves the same."""
+    return ui.Button(label=f"← {label}", variant="ghost", size="sm",
+                     icon="ArrowLeft", on_click=action)
 
 
 @ext.panel("memory", slot="center", title="Repo memory", icon="BrainCircuit",
            refresh="manual", center_overlay=True)
 async def memory_panel(ctx, **kwargs):
-    """One repository in full: its code index and its durable notes."""
+    """Repo memory: overview, one repo in full, the explainer, and its modals."""
     uid = _user_id(ctx)
     if not uid:
         return _err("Could not identify you — reopen the panel.")
-    want = str(kwargs.get("repo") or "")
 
-    # The explainer renders as a SECTION of this panel, not as its own center
-    # panel: a second slot="center" panel is not reliably mounted, which is why
-    # the old "How is this stored?" button appeared to do nothing. Handled
-    # before any repo lookup so it also works for a user with no memory yet.
-    if str(kwargs.get("section") or "") == "storage":
-        return await storage_body(uid, back_repo=want)
+    want = str(kwargs.get("repo") or "").strip()
+    section = str(kwargs.get("section") or "").strip().lower()
+
+    # ── The explainer ───────────────────────────────────────────────────────
+    if section == "storage":
+        # storage_body renders its own ← when it knows the repo it came from;
+        # opened from the overview there is no repo, so the ← goes there.
+        body = await storage_body(uid, back_repo=want)
+        if want:
+            return body
+        return ui.Stack(direction="v", gap=2, children=[
+            _back("Back to all repos", _nav()), body])
+
+    # ── The overview (root of the back chain) ───────────────────────────────
+    if not want:
+        try:
+            return await overview_body(uid)
+        except Exception as e:
+            log.error("overview load error: %s", e)
+            return _err("Could not load your repo memory — try again shortly.")
 
     try:
         indexes = await load_indexes(uid)
@@ -66,86 +101,31 @@ async def memory_panel(ctx, **kwargs):
     idx = pick(indexes, want)
     mem = pick(memories, want)
     if idx is None and mem is None:
-        return _empty(
-            "Nothing stored for this repo",
-            "Open it in the Webbee terminal agent — the index and notes appear here.")
+        # Also the state right after a successful erase: the repo is genuinely
+        # gone, so this is the honest view rather than a stale modal.
+        return ui.Stack(direction="v", gap=2, children=[
+            _back("Back to all repos", _nav()),
+            _empty("Nothing stored for this repo",
+                   "Open it in the Webbee terminal agent — the index and notes "
+                   "appear here."),
+        ])
 
     repo_key = (idx or mem).get("_repo_key", "")
     root = (idx or {}).get("repo_root") or ""
     entries = [e for e in ((mem or {}).get("entries") or []) if isinstance(e, dict)]
     label = repo_name(root, repo_key)
 
-    # Forgetting ONE note is destructive too, so it gets the same treatment as
-    # erasing a repo: a strict modal naming the exact text about to be lost.
-    # Previously the button fired delete_note immediately — no way back.
-    forget_pos = _pos(kwargs.get("forget"))
-    if 1 <= forget_pos <= len(entries):
-        doomed = str(entries[forget_pos - 1].get("note") or "")
-        preview = doomed if len(doomed) <= 300 else doomed[:300] + "…"
-        return ui.Stack(direction="v", gap=2, children=[
-            ui.Dialog(
-                title=f"Forget note #{forget_pos}?",
-                destructive=True,
-                confirm_label="Forget it",
-                cancel_label="Keep it",
-                on_confirm=ui.Call("delete_note", repo=repo_key, position=forget_pos),
-                content=ui.Stack(direction="v", gap=2, children=[
-                    ui.Text(content="This note will be removed from what Webbee "
-                                    "knows about this repo:"),
-                    ui.Card(title=f"Note #{forget_pos}", content=ui.Text(content=preview)),
-                    ui.Alert(type="warning", message=(
-                        "Distilled notes are judgement built up over many coding "
-                        "turns — this one cannot be recovered. The other "
-                        f"{len(entries) - 1} note(s) for this repo stay untouched.")),
-                ]),
-            ),
-            ui.Button(label="Cancel", variant="ghost", size="sm",
-                      on_click=_nav(repo=repo_key)),
-        ])
-
-    # Confirm step: the button re-renders THIS panel with confirm=1, which is
-    # what puts the modal on screen. ui.Dialog has no on_cancel parameter, so
-    # an explicit way back is required — otherwise the only exit from the
-    # modal is the destructive action itself.
-    if str(kwargs.get("confirm") or "") in ("1", "true", "yes"):
-        note_line = (f"{len(entries)} durable note{'' if len(entries) == 1 else 's'}"
-                     if entries else "no durable notes")
-        index_line = (f"the code index ({idx.get('file_count') or 0} files)"
-                      if idx is not None else "no code index")
-        return ui.Stack(direction="v", gap=2, children=[
-            ui.Dialog(
-                title=f"Erase what Webbee remembers about {label}?",
-                destructive=True,
-                confirm_label="Erase permanently",
-                cancel_label="Keep it",
-                on_confirm=ui.Call("delete_repo", repo=repo_key),
-                content=ui.Stack(direction="v", gap=2, children=[
-                    ui.Text(f"This erases {index_line} and {note_line} — both "
-                            f"storage keys for this repository. Afterwards the "
-                            f"keyspace is re-scanned to confirm nothing is left."),
-                    ui.Alert(type="warning", message=(
-                        "The notes cannot be recovered — they are judgement "
-                        "distilled over time, not something re-derivable from "
-                        "your files. The code index DOES come back on its own "
-                        "the next time you open this repo in the terminal "
-                        "agent.")),
-                    ui.Text(f"Repo key: {repo_key}"),
-                ]),
-            ),
-            ui.Button(label="← Keep it", variant="ghost", size="sm",
-                      on_click=_nav(repo=repo_key)),
-        ])
-
-    children = [
-        ui.Header(text=label,
-                  subtitle=root or f"repo key {repo_key}"),
+    # ── The repo view, built ONCE ───────────────────────────────────────────
+    children: list = [
+        _back("Back to all repos", _nav()),
+        ui.Header(text=label, subtitle=root or f"repo key {repo_key}"),
     ]
+
     if idx is not None:
-        # Visual first, tables after: the graph and the two charts answer
-        # "what IS this repo" at a glance, which the raw key/value rows can
-        # only answer by being read line by line. Both degrade to None when
-        # the index lacks the fields, so a thin index simply shows less.
-        focus = _focus_from_node(kwargs.get("node_id"))
+        # Visual first, tables after: the graph and charts answer "what IS
+        # this repo" at a glance, which key/value rows only answer line by
+        # line. Both return None on a thin index instead of drawing nothing.
+        focus = graph_focus_path(idx, kwargs.get("node_id"))
         graph = index_graph(idx, label, focus=focus)
         if graph is not None:
             children.append(graph)
@@ -157,14 +137,38 @@ async def memory_panel(ctx, **kwargs):
         children.append(ui.Alert(type="warning", message=(
             "No code index for this repo — only notes. That happens when the notes "
             "were written under an older repo identity (see 'How is this stored?').")))
-    children.append(_notes_card(repo_key, entries, editing=_pos(kwargs.get("edit"))))
+
+    children.append(_notes_card(repo_key, entries))
     children.append(ui.Card(
         title="Danger zone",
         content=ui.Stack(direction="v", gap=1, children=[
-            ui.Text("Erase this repository from Webbee's memory — the code index "
-                    "and every durable note, with nothing left in storage."),
+            ui.Text(content="Erase this repository from Webbee's memory — the code "
+                            "index and every durable note, with nothing left in "
+                            "storage."),
             ui.Button(label="Erase this repo's memory", variant="danger",
                       icon="Trash2",
                       on_click=_nav(repo=repo_key, confirm="1")),
         ])))
+    children.append(ui.Button(label="How is this stored?", variant="ghost",
+                              size="sm", icon="Database",
+                              on_click=_nav(repo=repo_key, section="storage")))
+
+    # ── Windows, layered ON TOP of that view ────────────────────────────────
+    # Each is bound to the note it was opened for via `token`, so a state param
+    # that outlives its subject (note saved, note deleted, list shifted) simply
+    # stops matching and the window does not come back.
+    token = str(kwargs.get("token") or "")
+    edit_pos = _pos(kwargs.get("edit"))
+    forget_pos = _pos(kwargs.get("forget"))
+
+    if _truthy(kwargs.get("confirm")):
+        children.append(erase_repo_modal(repo_key, label, entries, idx))
+    elif 1 <= edit_pos <= len(entries) and token_matches(entries, edit_pos, token):
+        children.append(edit_note_modal(repo_key, edit_pos, entries))
+    elif 1 <= forget_pos <= len(entries) and token_matches(entries, forget_pos, token):
+        children.append(forget_note_modal(repo_key, forget_pos, entries))
+
     return ui.Stack(direction="v", gap=2, children=children)
+
+
+__all__ = ["memory_panel"]

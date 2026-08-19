@@ -179,8 +179,10 @@ async def test_index_renders_a_clickable_graph_and_charts(
 async def test_graph_focuses_the_clicked_file(redis_mock, make_ctx, seed_index):
     """Clicking a file node must focus that file's symbols.
 
-    ui.Graph injects the clicked node's id as node_id, so the panel has to
-    translate "file::<path>" back into a focus path.
+    ui.Graph injects the clicked node's id as node_id, so the panel resolves it
+    back to a path. The ids are SHORT ("f0"), not "file::<path>": Cytoscape ids
+    end up inside selector strings where ':' '.' '/' are syntax, which is why
+    the first version of this graph drew nothing at all.
     """
     seed_index("imp_u_TEST", "abc123",
                top_symbols=[
@@ -189,10 +191,29 @@ async def test_graph_focuses_the_clicked_file(redis_mock, make_ctx, seed_index):
                ])
 
     out = tree(await panels.memory_panel(
-        make_ctx("imp_u_TEST"), repo="abc123",
-        node_id="file::imperal-ext-admin/panels_audit.py"))
+        make_ctx("imp_u_TEST"), repo="abc123", node_id="f0"))
 
-    assert "Showing symbols in" in out
+    assert "Focused: imperal-ext-admin/panels_audit.py" in out
+    assert "← Back to full graph" in out
+
+
+@pytest.mark.asyncio
+async def test_graph_node_ids_are_selector_safe(redis_mock, make_ctx, seed_index):
+    """No ':' '.' or '/' in any node/edge id — the exact reason it drew nothing."""
+    seed_index("imp_u_TEST", "abc123",
+               top_symbols=[
+                   "catalog_to_options (function) @ imperal-ext-admin/panels_llm_models.py:195",
+                   "build_audit (function) @ imperal-ext-admin/panels_audit.py:148",
+                   "main (function) @ probe_stream_terminals.py:17",
+               ])
+
+    out = tree(await panels.memory_panel(make_ctx("imp_u_TEST"), repo="abc123"))
+
+    assert "'id': 'file::" not in out
+    assert "type='Graph'" in out
+    # concentric + animate off = lands inside the viewport instead of drifting
+    assert "'layout': 'concentric'" in out
+    assert "'animate': False" in out
 
 
 @pytest.mark.asyncio

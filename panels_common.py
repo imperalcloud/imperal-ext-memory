@@ -27,7 +27,11 @@ _RETENTION_DAYS = REPO_MEM_TTL // 86400
 # Every piece of view state the memory panel reads out of kwargs. Listed once,
 # here, so a new state param cannot be added to the panel without also being
 # cleared by every navigation action.
-_VIEW_STATE = ("repo", "section", "edit", "forget", "confirm", "node_id")
+# ``token`` is the fingerprint of the note a modal is about (see
+# panels_modals.note_token): it is what stops a stale ``edit=2``/``forget=2``
+# from re-opening a modal over a note that has since been saved or deleted.
+_VIEW_STATE = ("repo", "section", "edit", "forget", "confirm", "node_id",
+               "token")
 
 
 def _nav(_omit: tuple = (), **state):

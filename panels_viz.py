@@ -1,19 +1,21 @@
 """Memory & Index · Visual layer — the index as a graph and charts.
 
 Why a graph rather than more key/value rows: the index IS a graph — a repo
-holds files, files hold symbols — and that shape is impossible to read as a
-flat list of "top_symbols" strings. ``ui.Graph`` is Cytoscape-backed, so
-clustering, sizing and colour carry real meaning here:
+holds directories, directories hold files, files hold symbols — and that shape
+is unreadable as a flat list of "top_symbols" strings.
 
-  * node size  = how many symbols hang off that file (mapData over `size`)
-  * node type  = repo | file | symbol, which drives colour via `color_by`
-  * clicking a file node re-renders the panel focused on that file
-
-Everything drawn here comes from fields the kernel actually persists in
-``imperal:repo_index_map`` — ``languages``, ``symbol_kinds``, ``top_symbols``
+Everything here comes from fields the kernel actually persists in
+``imperal:repo_index_map``: ``languages``, ``symbol_kinds``, ``top_symbols``
 (each "name (kind) @ path:line"), ``file_count``, ``embedded_chunks``. Nothing
-is synthesised: if a field is absent the visual degrades instead of inventing
-structure that does not exist in the index.
+is synthesised — a missing field degrades the visual instead of inventing
+structure the index does not have.
+
+NODE IDS ARE PLAIN ``repo`` / ``f3`` / ``f3s2`` ON PURPOSE. The first version
+used ``file::imperal-ext-admin/panels_llm_models.py`` and drew nothing:
+Cytoscape ids flow into selector strings, where ``:`` ``.`` ``/`` are syntax.
+sharelock-v2 — the one graph already working in this panel host — passes plain
+ids from its database, and also sets ``animate=False`` so the layout lands
+inside the viewport instead of drifting. Both lessons are applied here.
 """
 from __future__ import annotations
 
@@ -27,20 +29,21 @@ from panels_common import _nav
 log = logging.getLogger("memory-index")
 
 # "name (kind) @ path/to/file.py:123" — the exact shape core/repo_index_map.py
-# writes into top_symbols. Parsed defensively: an unparsable entry is skipped
-# rather than guessed at, so a format change degrades the visual instead of
-# producing a wrong graph.
-_SYM_RE = re.compile(r"^(?P<name>.+?)\s*\((?P<kind>[^)]+)\)\s*@\s*(?P<path>[^:]+):(?P<line>\d+)\s*$")
+# writes. An unparsable entry is skipped, never guessed at, so a format change
+# degrades the graph instead of drawing something false.
+_SYM_RE = re.compile(
+    r"^(?P<name>.+?)\s*\((?P<kind>[^)]+)\)\s*@\s*(?P<path>[^:]+):(?P<line>\d+)\s*$")
 
-_MAX_FILE_NODES = 28      # cytoscape stays readable; beyond this it is hairball
-_MAX_SYMS_PER_FILE = 6
+_MAX_FILES = 22        # keeps the layout inside the viewport, still detailed
+_MAX_DIRS = 8
+_MAX_FOCUS_SYMS = 12
 
 
-def parse_symbols(top_symbols: list) -> list[dict]:
+def parse_symbols(top_symbols) -> list[dict]:
     """Turn raw ``top_symbols`` strings into {name, kind, path, line} dicts."""
     out: list[dict] = []
     for raw in (top_symbols or []):
-        m = _SYM_RE.match(str(raw).strip())
+        m = _SYM_RE.match(str(raw))
         if not m:
             continue
         out.append({
@@ -52,88 +55,127 @@ def parse_symbols(top_symbols: list) -> list[dict]:
     return out
 
 
-def _short(path: str) -> str:
-    """Last two path segments — enough to identify a file without the noise."""
+def file_order(d: dict) -> list[tuple[str, list[dict]]]:
+    """Files by symbol count, then path — DETERMINISTIC on purpose.
+
+    A clicked node arrives as an index (``f7``), so the panel must be able to
+    rebuild the exact same ordering to know which file that was. Sorting by
+    count alone would let ties reshuffle between renders and focus the wrong
+    file, hence the path tie-break.
+    """
+    by_file: dict[str, list[dict]] = {}
+    for s in parse_symbols(d.get("top_symbols")):
+        by_file.setdefault(s["path"], []).append(s)
+    return sorted(by_file.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+
+
+def graph_focus_path(d: dict, node_id) -> str:
+    """Resolve a clicked node id back to a file path ('' when not a file)."""
+    s = str(node_id or "").strip()
+    m = re.fullmatch(r"f(\d+)", s)
+    if not m:
+        return ""
+    order = file_order(d)
+    i = int(m.group(1))
+    return order[i][0] if 0 <= i < len(order) else ""
+
+
+def _dir_of(path: str) -> str:
     parts = [p for p in str(path).split("/") if p]
-    return "/".join(parts[-2:]) if len(parts) > 1 else (parts[-1] if parts else "?")
+    return "/".join(parts[:-1]) if len(parts) > 1 else "·"
+
+
+def _leaf(path: str) -> str:
+    parts = [p for p in str(path).split("/") if p]
+    return parts[-1] if parts else "?"
 
 
 def index_graph(d: dict, repo_label: str, focus: str = "") -> ui.Card | None:
-    """The repo's structure as a clickable graph. None when there is nothing to draw."""
-    syms = parse_symbols(d.get("top_symbols"))
-    if not syms:
+    """The repo's structure as a clickable graph. None when nothing to draw."""
+    order = file_order(d)
+    if not order:
         return None
 
-    by_file: dict[str, list[dict]] = {}
-    for s in syms:
-        by_file.setdefault(s["path"], []).append(s)
+    shown = order[:_MAX_FILES]
+    total_syms = sum(len(v) for _, v in order)
 
-    # Busiest files first: with a capped node budget, the ones carrying the most
-    # symbols are the ones worth showing.
-    files = sorted(by_file.items(), key=lambda kv: len(kv[1]), reverse=True)
-    files = files[:_MAX_FILE_NODES]
+    # Directory tier: real structure, but only when it says something. One
+    # directory for everything would just be a wasted ring.
+    dirs: dict[str, int] = {}
+    for path, items in shown:
+        dirs[_dir_of(path)] = dirs.get(_dir_of(path), 0) + len(items)
+    use_dirs = 1 < len(dirs) <= _MAX_DIRS
 
-    repo_id = "repo::root"
-    nodes: list[dict] = [{
-        "id": repo_id,
-        "label": repo_label,
-        "type": "repo",
-        "size": 100,
-    }]
+    nodes: list[dict] = [{"id": "repo", "label": repo_label,
+                          "type": "repo", "size": 100}]
     edges: list[dict] = []
 
-    for path, items in files:
-        fid = f"file::{path}"
-        is_focus = bool(focus) and path == focus
+    dir_id: dict[str, str] = {}
+    if use_dirs:
+        for n, (name, weight) in enumerate(sorted(dirs.items(),
+                                                  key=lambda kv: -kv[1])):
+            did = f"d{n}"
+            dir_id[name] = did
+            nodes.append({"id": did, "label": name, "type": "dir",
+                          "size": 40 + min(weight, 40)})
+            edges.append({"id": f"e{did}", "source": "repo", "target": did,
+                          "label": str(weight)})
+
+    for i, (path, items) in enumerate(shown):
+        fid = f"f{i}"
+        focused = bool(focus) and path == focus
         nodes.append({
             "id": fid,
-            "label": _short(path),
-            "type": "focus" if is_focus else "file",
-            "size": 20 + len(items) * 12,
+            "label": _leaf(path),
+            "type": "focus" if focused else "file",
+            "size": 22 + min(len(items) * 10, 46),
         })
-        edges.append({"id": f"e::{fid}", "source": repo_id, "target": fid,
-                      "label": f"{len(items)}"})
+        parent = dir_id.get(_dir_of(path), "repo") if use_dirs else "repo"
+        edges.append({"id": f"e{fid}", "source": parent, "target": fid,
+                      "label": str(len(items))})
 
-        # Symbol nodes only for the focused file (or when few files exist):
-        # drawing every symbol at once is what turns a graph into a hairball.
-        show_syms = is_focus or (not focus and len(files) <= 6)
-        if not show_syms:
-            continue
-        for s in items[:_MAX_SYMS_PER_FILE]:
-            sid = f"sym::{path}::{s['name']}::{s['line']}"
-            nodes.append({
-                "id": sid,
-                "label": s["name"],
-                "type": s["kind"] or "symbol",
-                "size": 14,
-            })
-            edges.append({"id": f"e::{sid}", "source": fid, "target": sid,
-                          "label": f":{s['line']}"})
+        if focused:
+            for j, s in enumerate(items[:_MAX_FOCUS_SYMS]):
+                sid = f"{fid}s{j}"
+                nodes.append({"id": sid, "label": s["name"],
+                              "type": s["kind"] or "symbol", "size": 16})
+                edges.append({"id": f"e{sid}", "source": fid, "target": sid,
+                              "label": str(s["line"])})
 
-    hint = ("Click a file to expand its symbols."
-            if not focus else
-            f"Showing symbols in {_short(focus)} — click another file to switch.")
+    head = [ui.Text(
+        content=(f"{len(order)} file(s) carry {total_syms} indexed symbol(s)"
+                 + (f" — showing the {len(shown)} busiest." if len(shown) < len(order)
+                    else ".")
+                 + (f" Focused: {focus}" if focus else
+                    " Click a file to expand its symbols.")),
+        variant="caption")]
+    if focus:
+        head.append(ui.Button(label="← Back to full graph", variant="ghost",
+                              size="sm", on_click=_nav(repo=str(d.get("_repo_key") or ""))))
+
+    graph = ui.Graph(
+        nodes=nodes,
+        edges=edges,
+        # Deterministic and viewport-friendly, like the one graph already
+        # working in this host. cose-bilkent drifts on first paint.
+        layout="concentric",
+        height=440,
+        color_by="type",
+        edge_label_visible=True,
+        min_node_size=16,
+        max_node_size=68,
+        # node_id is injected by ui.Graph itself, so it must NOT be blanked by
+        # the action — hence _omit.
+        on_node_click=_nav(_omit=("node_id",),
+                           repo=str(d.get("_repo_key") or "")),
+    )
+    # The SDK has no `animate` prop; the renderer reads props.animate (default
+    # true). Off = the layout settles inside the frame instead of floating out.
+    graph.props["animate"] = False
 
     return ui.Card(
         title="Structure graph",
-        content=ui.Stack(direction="v", gap=1, children=[
-            ui.Text(content=hint, variant="caption"),
-            ui.Graph(
-                nodes=nodes,
-                edges=edges,
-                layout="cose-bilkent",
-                height=460,
-                color_by="type",
-                min_node_size=14,
-                max_node_size=64,
-                # The clicked node's id arrives as node_id; the panel turns a
-                # "file::<path>" id back into a focus path. node_id is OMITTED
-                # from the action rather than blanked: ui.Graph injects it, so
-                # pinning it to "" here would erase the click's own payload.
-                on_node_click=_nav(_omit=("node_id",),
-                                   repo=str(d.get("_repo_key") or "")),
-            ),
-        ]),
+        content=ui.Stack(direction="v", gap=1, children=[*head, graph]),
     )
 
 
@@ -146,10 +188,9 @@ def index_charts(d: dict) -> ui.Card | None:
     if not langs and not kinds:
         return None
 
-    # Titles live on a wrapping ui.Section, NOT on ui.Chart: the SDK deployed on
-    # the platform accepts only data/type/x_key/height/colors/y2_keys, and a
-    # newer local SDK that also takes title=/show_legend= will happily validate
-    # code the worker then rejects. Section is the portable way to label a chart.
+    # Titles live on a wrapping ui.Section, NOT on ui.Chart: the deploy
+    # validator's component allowlist accepts only data/type/x_key/height/
+    # colors/y2_keys, even though the worker's SDK would take title=.
     blocks = []
     if langs:
         rows = [{"name": k, "files": v} for k, v in
@@ -171,23 +212,21 @@ def index_charts(d: dict) -> ui.Card | None:
 def memory_bars(index_count: int, note_count: int, orphan_count: int,
                 chunk_count: int) -> ui.Card:
     """Inventory-level proportions: how much of the memory is which store."""
-    total_repos = max(index_count, 1)
+    matched = max(index_count - orphan_count, 0)
+    pct = int(round(100 * matched / index_count)) if index_count else 0
     return ui.Card(
         title="Memory footprint",
         content=ui.Stack(direction="v", gap=2, children=[
             ui.Stats(children=[
-                ui.Stat(label="Indexed repos", value=str(index_count), icon="FolderGit2"),
-                ui.Stat(label="Durable notes", value=str(note_count), icon="Brain"),
-                ui.Stat(label="Semantic chunks", value=f"{chunk_count:,}", icon="Layers"),
-                ui.Stat(label="Orphaned note sets", value=str(orphan_count),
-                        icon="Unlink",
-                        color="orange" if orphan_count else "green"),
+                ui.Stat(label="Indexed repos", value=str(index_count)),
+                ui.Stat(label="Repos with notes", value=str(note_count)),
+                ui.Stat(label="Semantic chunks", value=f"{chunk_count:,}"),
             ]),
-            ui.Progress(value=min(100, int(100 * (index_count - orphan_count) / total_repos)),
-                        label="Repos whose notes match a live index",
-                        show_value=True),
+            ui.Progress(value=pct, label=f"{matched}/{index_count} repos have "
+                                         "notes filed under the live index"),
         ]),
     )
 
 
-__all__ = ["parse_symbols", "index_graph", "index_charts", "memory_bars"]
+__all__ = ["parse_symbols", "file_order", "graph_focus_path", "index_graph",
+           "index_charts", "memory_bars"]

@@ -13,6 +13,7 @@ from imperal_sdk import ui
 
 from app import MAX_ENTRIES, NOTE_CHARS, REPO_MEM_TTL, age, repo_name
 from panels_common import _nav
+from panels_modals import note_token
 
 log = logging.getLogger("memory-index")
 
@@ -59,15 +60,15 @@ def _index_card(d: dict) -> ui.Card:
     return ui.Card(title="Code index", content=ui.Stack(direction="v", gap=2, children=content))
 
 
-def _notes_card(repo_key: str, entries: list, editing: int = 0) -> ui.Card:
+def _notes_card(repo_key: str, entries: list) -> ui.Card:
     """Durable notes — every one editable and deletable by its owner.
 
-    ``editing`` is the 1-based position currently being edited: that note
-    renders as a form pre-filled with its own text instead of a read-only
-    block. The Edit button used to call ``edit_note`` directly with the text
-    it already had, which dutifully saved the note unchanged and reported
-    "was: X now: X" — a no-op that looked like a broken button. A write tool
-    cannot prompt for input, so the panel has to supply the field first.
+    Editing happens in a modal window layered ON TOP of this card, not in
+    place of it: the previous version swapped the note's row for an inline
+    form, which re-rendered the whole section and lost the reader's place.
+    Both buttons carry a ``token`` — the fingerprint of the note's current
+    text — so the modal they open is bound to THAT note and cannot reappear
+    over a different one after a save or a delete shifts the list.
     """
     children = [
         ui.Alert(type="info", message=(
@@ -93,38 +94,20 @@ def _notes_card(repo_key: str, entries: list, editing: int = 0) -> ui.Card:
             ref = str(e.get("distilled_git_ref") or "")[:12]
             meta = f"{origin} {written}" + (f" @ {ref}" if ref else "")
 
-            if idx == editing:
-                # value= pre-fills the textarea with the CURRENT text, so the
-                # user edits the real note instead of retyping it from scratch.
-                rows.append(ui.Section(title=f"#{idx} · editing", children=[
-                    ui.Form(
-                        action="edit_note",
-                        submit_label="Save this note",
-                        defaults={"repo": repo_key, "position": idx},
-                        children=[
-                            ui.TextArea(param_name="note", value=text, rows=6,
-                                        label=f"Note #{idx} (max {NOTE_CHARS} chars)",
-                                        description="Secrets are stripped automatically "
-                                                    "before saving.",
-                                        required=True),
-                        ],
-                    ),
-                    ui.Button(label="Cancel", variant="ghost", size="sm",
-                              on_click=_nav(repo=repo_key)),
-                ]))
-                continue
-
+            tok = note_token(text)
             rows.append(ui.Section(title=f"#{idx} · {meta}", children=[
                 ui.Text(content=text),
                 ui.Text(content=("cites: " + ", ".join(cites)) if cites else "no file cited"),
                 ui.Stack(direction="h", gap=1, children=[
-                    # Both controls re-render THIS panel with a parameter —
-                    # edit opens the form, forget opens a confirmation modal.
-                    # Neither mutates anything on the first click.
+                    # Both controls only re-render THIS panel with a param —
+                    # edit opens the editing window, forget opens a strict
+                    # confirmation. Neither mutates anything on first click.
                     ui.Button(label="Edit", variant="secondary", icon="Pencil",
-                              on_click=_nav(repo=repo_key, edit=str(idx))),
+                              on_click=_nav(repo=repo_key, edit=str(idx),
+                                            token=tok)),
                     ui.Button(label="Forget", variant="danger", icon="Trash2",
-                              on_click=_nav(repo=repo_key, forget=str(idx))),
+                              on_click=_nav(repo=repo_key, forget=str(idx),
+                                            token=tok)),
                 ]),
             ]))
         children.append(ui.Stack(direction="v", gap=2, children=rows))
