@@ -37,6 +37,11 @@ def has(node, kind: str) -> bool:
     return any(getattr(n, "type", "") == kind for n in flat(node))
 
 
+def tree(node) -> str:
+    """The rendered panel tree as text, for asserting on wiring."""
+    return repr(node)
+
+
 def backs(node) -> list:
     """Labels of every back control in a rendered view."""
     return [str(getattr(n, "props", {}).get("label") or "")
@@ -169,3 +174,51 @@ async def test_edit_window_carries_a_form_not_a_direct_write(
     assert "TextArea" in out
     assert "deploys via deploy.sh" in out
     assert "'action': 'edit_note'" in out
+
+
+# ── 4. The graph must carry the repo's REAL weight ─────────────────────
+
+@pytest.mark.asyncio
+async def test_graph_shows_aggregate_language_and_symbol_tiers(
+        redis_mock, make_ctx, seed_index):
+    """The graph must reflect the whole repo, not just its 20 named symbols.
+
+    top_symbols caps at 20 entries, so structural tiers alone described ~20
+    files and a 3110-file repo drew nine nodes — technically true, wildly
+    misleading. languages and symbol_kinds are real aggregates in the index,
+    so they become their own tiers with their real counts.
+    """
+    seed_index("imp_u_TEST", "abc123",
+               file_count=3110,
+               languages={"javascript": 2, "python": 1429, "typescript": 6},
+               symbol_kinds={"class": 2420, "function": 10081},
+               top_symbols=[
+                   "build_audit (function) @ imperal-ext-admin/panels_audit.py:148",
+                   "main (function) @ probe_stream_terminals.py:17",
+               ])
+
+    out = tree(await panels.memory_panel(make_ctx("imp_u_TEST"), repo="abc123"))
+
+    assert "python · 1,429" in out          # language tier, real count
+    assert "function · 10,081" in out       # symbol-kind tier, real count
+    assert "3,110" in out                   # the true file total, in the caption
+
+
+@pytest.mark.asyncio
+async def test_graph_tiers_survive_a_junk_index(redis_mock, make_ctx, seed_index):
+    """Non-numeric or empty aggregate entries are skipped, never rendered."""
+    seed_index("imp_u_TEST", "abc123",
+               file_count=9,
+               languages={"python": "lots", "": 5, "go": 0, "rust": 3},
+               symbol_kinds={"function": None},
+               top_symbols=["main (function) @ probe_stream_terminals.py:17"])
+
+    out = tree(await panels.memory_panel(make_ctx("imp_u_TEST"), repo="abc123"))
+
+    assert "rust · 3" in out                 # the one usable entry survives
+    # The graph tier labels its nodes "<name> · <count>", so junk entries are
+    # absent from the GRAPH. The read-only index table still reports what is
+    # actually stored ("python lots") — that is honest, not a leak.
+    assert "'label': 'python · " not in out
+    assert "'type': 'kind'" not in out       # symbol_kinds held only None
+    assert "type='Graph'" in out

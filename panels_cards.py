@@ -20,14 +20,27 @@ log = logging.getLogger("memory-index")
 _RETENTION_DAYS = REPO_MEM_TTL // 86400
 
 
+def _num(value) -> int:
+    """A count from the index, or 0 — never an exception.
+
+    These dicts come straight out of Redis, so one non-numeric value used to
+    take the ENTIRE repo view down: sorting by value raised TypeError comparing
+    str to int before anything rendered.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _index_card(d: dict) -> ui.Card:
     """The structural map — read-only by design."""
     langs = d.get("languages") or {}
     kinds = d.get("symbol_kinds") or {}
     lang_txt = ", ".join(f"{k} {v}" for k, v in sorted(
-        langs.items(), key=lambda kv: kv[1], reverse=True)) or "—"
+        langs.items(), key=lambda kv: _num(kv[1]), reverse=True)) or "—"
     kind_txt = ", ".join(f"{k} {v}" for k, v in sorted(
-        kinds.items(), key=lambda kv: kv[1], reverse=True)) or "—"
+        kinds.items(), key=lambda kv: _num(kv[1]), reverse=True)) or "—"
 
     rows = [
         {"key": "Path on disk", "value": d.get("repo_root") or "—"},

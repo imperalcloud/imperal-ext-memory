@@ -37,6 +37,8 @@ _SYM_RE = re.compile(
 _MAX_FILES = 22        # keeps the layout inside the viewport, still detailed
 _MAX_DIRS = 8
 _MAX_FOCUS_SYMS = 12
+_MAX_LANGS = 6
+_MAX_KINDS = 4
 
 
 def parse_symbols(top_symbols) -> list[dict]:
@@ -110,6 +112,46 @@ def index_graph(d: dict, repo_label: str, focus: str = "") -> ui.Card | None:
                           "type": "repo", "size": 100}]
     edges: list[dict] = []
 
+    # Language tier: the composition of the WHOLE repo, with real file counts.
+    # Without it a 3110-file repo drew nine nodes, because the structural tiers
+    # below can only describe the ~20 files named in top_symbols — true, but a
+    # misleading sense of scale for the repository as a whole.
+    langs: dict[str, int] = {}
+    for key, val in (d.get("languages") or {}).items():
+        try:
+            count = int(val)
+        except (TypeError, ValueError):
+            continue
+        if str(key).strip() and count > 0:
+            langs[str(key)] = count
+    for n, (name, count) in enumerate(
+            sorted(langs.items(), key=lambda kv: -kv[1])[:_MAX_LANGS]):
+        lid = f"L{n}"
+        nodes.append({"id": lid, "label": f"{name} · {count:,}",
+                      "type": "language", "size": 34 + min(count // 40, 46)})
+        edges.append({"id": f"e{lid}", "source": "repo", "target": lid,
+                      "label": f"{count:,} files"})
+
+    # Symbol-kind tier: the repo's real symbol totals (function 10,081 /
+    # class 2,420 for MCP-Configs). top_symbols caps at 20 entries, so the
+    # structural tiers below can only ever describe ~20 files — these aggregate
+    # counts are what tell the true size of what Webbee has indexed.
+    kinds: dict[str, int] = {}
+    for key, val in (d.get("symbol_kinds") or {}).items():
+        try:
+            count = int(val)
+        except (TypeError, ValueError):
+            continue
+        if str(key).strip() and count > 0:
+            kinds[str(key)] = count
+    for n, (name, count) in enumerate(
+            sorted(kinds.items(), key=lambda kv: -kv[1])[:_MAX_KINDS]):
+        kid = f"K{n}"
+        nodes.append({"id": kid, "label": f"{name} · {count:,}",
+                      "type": "kind", "size": 30 + min(count // 300, 46)})
+        edges.append({"id": f"e{kid}", "source": "repo", "target": kid,
+                      "label": f"{count:,}"})
+
     dir_id: dict[str, str] = {}
     if use_dirs:
         for n, (name, weight) in enumerate(sorted(dirs.items(),
@@ -143,7 +185,8 @@ def index_graph(d: dict, repo_label: str, focus: str = "") -> ui.Card | None:
                               "label": str(s["line"])})
 
     head = [ui.Text(
-        content=(f"{len(order)} file(s) carry {total_syms} indexed symbol(s)"
+        content=(f"{len(langs)} language(s) across {int(d.get('file_count') or 0):,} "
+                 f"file(s); {len(order)} file(s) carry {total_syms} indexed symbol(s)"
                  + (f" — showing the {len(shown)} busiest." if len(shown) < len(order)
                     else ".")
                  + (f" Focused: {focus}" if focus else
