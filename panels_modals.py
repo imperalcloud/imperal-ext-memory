@@ -35,17 +35,22 @@ from panels_common import _nav
 _PREVIEW = 300
 
 
-# The panel host runs a NEWER SDK than a dev machine may have: there,
-# ``ui.Modal`` exists with size/subtitle/on_close/dismissible, and ``ui.Dialog``
-# is a thin alias forwarding **kwargs to it. On an older SDK ``ui.Modal`` is
-# absent and ``ui.Dialog`` takes only the five original arguments, so passing
-# size= or on_close= raises TypeError before anything renders.
+# ``ui.Dialog`` ON PURPOSE, not ``ui.Modal``.
 #
-# Writing for either one alone is a trap — target the old SDK and the modal
-# loses on_close (the very thing that clears the flag), target the new one and
-# it cannot be tested locally at all. So the component is asked what it
-# accepts, and only those kwargs are passed.
-_MODAL_FN = getattr(ui, "Modal", None) or ui.Dialog
+# The panel host runs a NEWER SDK than a dev machine may have. There, Dialog is
+# documented as a deprecated alias — but it is a FULL one: it forwards every
+# kwarg (on_close, size, subtitle, dismissible) into Modal and deliberately
+# keeps emitting ``type="Dialog"`` so older renderers keep drawing it. On an
+# older SDK ``ui.Modal`` does not exist at all and Dialog takes only its five
+# original arguments, where passing size= or on_close= raises TypeError before
+# anything renders.
+#
+# So Dialog is the one call that behaves on BOTH: it gains on_close where the
+# host supports it, emits the same node type either way, and is the wire type
+# already proven to render by the extensions live in this host. Betting on
+# Modal instead would mean shipping a component whose rendering was never
+# verified here — exactly the mistake that made the first graph draw nothing.
+_MODAL_FN = ui.Dialog
 try:
     _MODAL_PARAMS = set(inspect.signature(_MODAL_FN).parameters)
     _MODAL_VARKW = any(p.kind is inspect.Parameter.VAR_KEYWORD
