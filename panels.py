@@ -37,9 +37,10 @@ from panels_modals import (  # noqa: F401
 from panels_overview import overview_body  # noqa: F401
 from panels_repos import repos_panel  # noqa: F401
 from panels_storage import storage_body  # noqa: F401
-from panels_viz import graph_focus_path, index_charts, index_graph  # noqa: F401
+from panels_focus import focus_card, resolve_node  # noqa: F401
+from panels_viz import index_charts, index_graph  # noqa: F401
 
 __all__ = ["repos_panel", "memory_panel", "overview_body", "storage_body",
-           "index_graph", "index_charts", "graph_focus_path",
+           "index_graph", "index_charts", "resolve_node", "focus_card",
            "erase_repo_modal", "forget_note_modal",
            "note_token", "token_matches"]

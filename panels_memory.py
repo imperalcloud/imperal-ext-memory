@@ -34,11 +34,12 @@ from imperal_sdk import ui
 
 from app import _user_id, ext, load_indexes, load_memories, pick, repo_name
 from panels_cards import _index_card, _notes_card
-from panels_common import _empty, _err, _nav
+from panels_common import _back, _empty, _err, _nav
+from panels_focus import focus_card, resolve_node
 from panels_modals import erase_repo_modal, forget_note_modal, token_matches
 from panels_overview import overview_body
 from panels_storage import storage_body
-from panels_viz import graph_focus_path, index_charts, index_graph
+from panels_viz import index_charts, index_graph
 
 log = logging.getLogger("memory-index")
 
@@ -53,12 +54,6 @@ def _pos(value) -> int:
 
 def _truthy(value) -> bool:
     return str(value or "").strip().lower() in ("1", "true", "yes", "on")
-
-
-def _back(label: str, action) -> ui.UINode:
-    """The one back control, so every view's ← looks and behaves the same."""
-    return ui.Button(label=f"← {label}", variant="ghost", size="sm",
-                     icon="ArrowLeft", on_click=action)
 
 
 @ext.panel("memory", slot="center", title="Repo memory", icon="BrainCircuit",
@@ -124,8 +119,18 @@ async def memory_panel(ctx, **kwargs):
         # Visual first, tables after: the graph and charts answer "what IS
         # this repo" at a glance, which key/value rows only answer line by
         # line. Both return None on a thin index instead of drawing nothing.
-        focus = graph_focus_path(idx, kwargs.get("node_id"))
-        graph = index_graph(idx, label, focus=focus)
+        #
+        # A CLICK MUST ANSWER IN WORDS. Previously only file ids resolved, so
+        # clicking a language, a symbol kind, a directory or the core just
+        # rebuilt the identical graph and left the user guessing. resolve_node
+        # explains every id the graph can emit; `focus` (files and symbols
+        # only) is what the graph additionally expands. The card goes ABOVE
+        # the graph: the answer first, the picture second.
+        info = resolve_node(idx, kwargs.get("node_id"))
+        card = focus_card(info, repo_key)
+        if card is not None:
+            children.append(card)
+        graph = index_graph(idx, label, focus=str(info.get("focus") or ""))
         if graph is not None:
             children.append(graph)
         charts = index_charts(idx)

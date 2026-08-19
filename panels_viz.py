@@ -80,17 +80,6 @@ def file_order(d: dict) -> list[tuple[str, list[dict]]]:
     return sorted(by_file.items(), key=lambda kv: (-len(kv[1]), kv[0]))
 
 
-def graph_focus_path(d: dict, node_id) -> str:
-    """Resolve a clicked node id back to a file path ('' when not a file)."""
-    s = str(node_id or "").strip()
-    m = re.fullmatch(r"f(\d+)", s)
-    if not m:
-        return ""
-    order = file_order(d)
-    i = int(m.group(1))
-    return order[i][0] if 0 <= i < len(order) else ""
-
-
 def _dir_of(path: str) -> str:
     parts = [p for p in str(path).split("/") if p]
     return "/".join(parts[:-1]) if len(parts) > 1 else "·"
@@ -296,5 +285,9 @@ def memory_bars(index_count: int, note_count: int, orphan_count: int,
     )
 
 
-__all__ = ["parse_symbols", "file_order", "graph_focus_path", "index_graph",
+# graph_focus_path used to live here and resolved ONLY file ids, which is why
+# clicking a language/kind/directory/core circle silently redrew the same
+# graph. panels_focus.resolve_node replaces it and understands every id this
+# module emits, so there is deliberately no second resolver here to drift.
+__all__ = ["parse_symbols", "file_order", "index_graph",
            "index_charts", "memory_bars"]

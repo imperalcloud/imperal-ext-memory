@@ -63,6 +63,16 @@ def _nav(_omit: tuple = (), **state):
     return ui.Call("__panel__memory", **params)
 
 
+def _back(label: str, action) -> ui.UINode:
+    """The one back control, so every view's ← looks and behaves the same.
+
+    Lives here rather than in panels_memory because three different views need
+    it now — the repo view, the storage explainer and the clicked-node card.
+    """
+    return ui.Button(label=f"← {label}", variant="ghost", size="sm",
+                     icon="ArrowLeft", on_click=action)
+
+
 def _err(message: str) -> ui.Stack:
     return ui.Stack(children=[ui.Alert(message=message, type="error")])
 
