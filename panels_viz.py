@@ -40,12 +40,14 @@ _MAX_FOCUS_SYMS = 12
 _MAX_LANGS = 6
 _MAX_KINDS = 4
 
-# Cytoscape sizes nodes via mapData(size, min_node_size, max_node_size), which
-# EXTRAPOLATES outside that domain instead of clamping — one oversized node is
-# enough to leave the whole graph unpainted (blank frame, and no canvas for an
-# image export either). One source of truth for both the values and the props.
-_NODE_MIN = 20.0
-_NODE_MAX = 70.0
+# The renderer's node style is mapData(size, 0, 50, min_node_size,
+# max_node_size): the INPUT domain is hard-coded 0..50, and min/max_node_size
+# are the pixel diameters it maps onto. So `size` must live in 0..50 — it is
+# not a pixel value — while the props below carry the pixels.
+_SIZE_MIN = 10.0
+_SIZE_MAX = 50.0
+_PX_MIN = 18.0
+_PX_MAX = 64.0
 
 
 def parse_symbols(top_symbols) -> list[dict]:
@@ -203,42 +205,42 @@ def index_graph(d: dict, repo_label: str, focus: str = "") -> ui.UINode | None:
         head.append(ui.Button(label="← Back to full graph", variant="ghost",
                               size="sm", on_click=_nav(repo=str(d.get("_repo_key") or ""))))
 
-    # Every node value into the declared domain, keeping the tiers' relative
-    # order. The repo node was 100 against a ceiling of 68 — the biggest node
-    # in the graph was also the most out-of-range one.
+    # Two non-optional things, both read straight off the renderer's source.
+    # 1. `size` rescaled into its hard-coded 0..50 mapData domain (a clamp
+    #    would flatten the top tiers into each other).
+    # 2. `mention_count` on EVERY node — the invisible-graph bug: the renderer
+    #    opens with a minMentions=1 filter and reads a missing field as 0, so
+    #    every node went display:none, then every edge with it. Cytoscape
+    #    mounted and painted an empty canvas — hence also the empty PNG.
+    raws = []
     for n in nodes:
         try:
-            raw = float(n.get("size") or _NODE_MIN)
+            raws.append(float(n.get("size") or 0))
         except (TypeError, ValueError):
-            raw = _NODE_MIN
-        n["size"] = max(_NODE_MIN, min(_NODE_MAX, raw))
+            raws.append(0.0)
+    lo, hi = min(raws), max(raws)
+    span = (hi - lo) or 1.0
+    for n, raw in zip(nodes, raws):
+        scaled = _SIZE_MIN + (raw - lo) / span * (_SIZE_MAX - _SIZE_MIN)
+        n["size"] = round(scaled, 2)
+        n["mention_count"] = max(1, int(round(scaled)))
 
     graph = ui.Graph(
         nodes=nodes,
         edges=edges,
-        # Deterministic and viewport-friendly, like the one graph already
-        # working in this host. cose-bilkent drifts on first paint.
+        # Deterministic; cose-bilkent drifts out of frame on first paint.
         layout="concentric",
         height=600,
         color_by="type",
         edge_label_visible=True,
-        min_node_size=_NODE_MIN,
-        max_node_size=_NODE_MAX,
+        min_node_size=_PX_MIN,
+        max_node_size=_PX_MAX,
         # node_id is injected by ui.Graph itself, so it must NOT be blanked by
         # the action — hence _omit.
         on_node_click=_nav(_omit=("node_id",),
                            repo=str(d.get("_repo_key") or "")),
     )
-    # NOTHING is injected into graph.props. The platform defines the Graph
-    # contract as exactly the props passed above; "animate" is not one of them.
-    # An earlier version set it by hand, copied from another extension: that
-    # slips past validation (which reads ui.* CALL arguments, not later
-    # assignments) and ships the renderer an undefined prop.
-
-    # Section, NOT Card. The proven graph sits in Stack > Section > Graph, and
-    # the Chart in this panel — which does render — is in a Section too. A Card
-    # lays content out through its own wrapper, which is exactly what a canvas
-    # that must measure itself suffers from.
+    # Nothing is assigned onto graph.props: only the props above are defined.
     return ui.Section(
         title="Structure graph",
         children=[*head, graph],

@@ -35,17 +35,7 @@ def _graph_of(node):
     return None
 
 
-@pytest.mark.asyncio
-async def test_every_node_size_stays_inside_the_declared_domain(
-        redis_mock, make_ctx, seed_index):
-    """Node sizes must lie within min_node_size..max_node_size.
-
-    Cytoscape sizes nodes via mapData(size, min, max). A value outside that
-    domain is EXTRAPOLATED, not clamped, so one oversized node is enough to
-    give the graph degenerate geometry and leave it never painting — a blank
-    frame, and an image export with no canvas to export. The repo node used to
-    be 100 against a ceiling of 68, which is exactly that bug.
-    """
+def _rich_index(seed_index):
     seed_index("imp_u_TEST", "abc123",
                file_count=3110,
                languages={"python": 1429, "typescript": 6, "javascript": 2},
@@ -56,14 +46,53 @@ async def test_every_node_size_stays_inside_the_declared_domain(
                    "main (function) @ probe_stream_terminals.py:17",
                ])
 
+
+@pytest.mark.asyncio
+async def test_every_node_carries_a_mention_count(
+        redis_mock, make_ctx, seed_index):
+    """EVERY node needs mention_count >= 1, or the graph renders empty.
+
+    This is the bug that made the graph invisible, and nothing in the payload
+    looked wrong. The renderer opens with a minMentions=1 filter and hides any
+    node scoring below it — and a node WITHOUT the field is read as 0:
+
+        mention_count: typeof n.mention_count === "number" ? n.mention_count : 0
+        hidden = hiddenTypes.has(type) || mc < minMentions
+
+    So every node was display:none, then every edge with it. Cytoscape mounted
+    fine, laid out fine and painted an empty canvas — background only, and an
+    empty PNG on export, because cy.png() had nothing visible to draw.
+    """
+    _rich_index(seed_index)
+
     g = _graph_of(await panels.memory_panel(make_ctx("imp_u_TEST"), repo="abc123"))
     assert g is not None, "the repo view must carry a graph"
 
-    lo = g.props["min_node_size"]
-    hi = g.props["max_node_size"]
+    missing = [n["id"] for n in g.props["nodes"]
+               if not isinstance(n.get("mention_count"), int)
+               or n["mention_count"] < 1]
+    assert not missing, f"nodes the renderer would hide on first paint: {missing}"
+
+
+@pytest.mark.asyncio
+async def test_node_size_stays_inside_the_renderers_mapdata_domain(
+        redis_mock, make_ctx, seed_index):
+    """`size` is a 0..50 value, NOT a pixel diameter.
+
+    The renderer's stylesheet is mapData(size, 0, 50, min_node_size,
+    max_node_size): the input domain is hard-coded, and min/max_node_size are
+    the pixels it maps onto. Feeding pixel-sized values (20..70) pushes the
+    biggest nodes past the top of the domain, where mapData extrapolates.
+    """
+    _rich_index(seed_index)
+
+    g = _graph_of(await panels.memory_panel(make_ctx("imp_u_TEST"), repo="abc123"))
     bad = [(n["id"], n["size"]) for n in g.props["nodes"]
-           if not lo <= n["size"] <= hi]
-    assert not bad, f"node sizes outside mapData domain {lo}..{hi}: {bad}"
+           if not 0 <= n["size"] <= 50]
+    assert not bad, f"size values outside the renderer's 0..50 domain: {bad}"
+
+    # The pixel range stays sane and ordered, or big nodes swallow the frame.
+    assert 0 < g.props["min_node_size"] < g.props["max_node_size"] <= 100
 
 
 @pytest.mark.asyncio
