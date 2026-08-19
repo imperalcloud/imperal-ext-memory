@@ -14,9 +14,3 @@ dist/
 .DS_Store
 .env
 *.log
-
-# Local browser-render check: live payload, vendored cytoscape, screenshots.
-# All three are reproducible artefacts, never source.
-.graph_payload.json
-.cytoscape.min.js
-shots/
