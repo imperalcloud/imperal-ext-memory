@@ -74,31 +74,31 @@ async def test_erase_modal_does_not_reappear_after_the_repo_is_gone(
 
 
 @pytest.mark.asyncio
-async def test_edit_modal_closes_itself_once_the_note_is_saved(
+async def test_inline_editor_always_carries_the_notes_current_text(
         redis_mock, make_ctx, seed_index, seed_memory):
-    """A stale edit=N must not re-open over a note that has since changed.
+    """The editor is part of the note, and it never opens a window.
 
-    ui.Call cannot chain (one action + params), so a modal cannot clear its own
-    flag after calling the tool. Binding it to a fingerprint of the note's text
-    is what makes the flag stop mattering by itself.
+    This replaces a modal-based editor. A window driven by view state could
+    survive its own save and pop straight back, because ui.Call cannot chain
+    (one action + params) and so a modal cannot clear its own flag. An inline
+    collapsible has no flag to clear: the browser opens it, the server is not
+    told, and after a save the field simply re-renders with the new text.
     """
     seed_index("imp_u_TEST", "abc123")
     seed_memory("imp_u_TEST", "abc123", ["deploys via deploy.sh"])
     ctx = make_ctx("imp_u_TEST")
-    token = note_token("deploys via deploy.sh")
 
-    assert has(await panels.memory_panel(ctx, repo="abc123", edit="1", token=token),
-               "Dialog")
+    before = repr(await panels.memory_panel(ctx, repo="abc123"))
+    assert "deploys via deploy.sh" in before
+    assert "'collapsible': True" in before      # opened client-side
+    assert not has(await panels.memory_panel(ctx, repo="abc123"), "Dialog"), \
+        "editing must not open a window"
 
     seed_memory("imp_u_TEST", "abc123", ["deploys via ship.sh"])  # saved
 
-    assert not has(
-        await panels.memory_panel(ctx, repo="abc123", edit="1", token=token),
-        "Dialog"), "edit window re-opened over the already-saved note"
-
-    fresh = note_token("deploys via ship.sh")
-    assert has(await panels.memory_panel(ctx, repo="abc123", edit="1", token=fresh),
-               "Dialog"), "a deliberate re-open must still work"
+    after = repr(await panels.memory_panel(ctx, repo="abc123"))
+    assert "deploys via ship.sh" in after       # the field follows the note
+    assert "deploys via deploy.sh" not in after  # no stale text left behind
 
 
 @pytest.mark.asyncio
@@ -129,7 +129,6 @@ async def test_forget_modal_does_not_retarget_a_different_note(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("state", [
     {"confirm": "1"},
-    {"edit": "1"},
     {"forget": "1"},
 ])
 async def test_every_modal_keeps_the_repo_view_underneath(
@@ -148,7 +147,7 @@ async def test_every_modal_keeps_the_repo_view_underneath(
     ctx = make_ctx("imp_u_TEST")
 
     params = dict(state)
-    if "edit" in params or "forget" in params:
+    if "forget" in params:
         params["token"] = note_token("deploys via deploy.sh")
 
     plain = await panels.memory_panel(ctx, repo="abc123")
@@ -161,19 +160,24 @@ async def test_every_modal_keeps_the_repo_view_underneath(
 
 
 @pytest.mark.asyncio
-async def test_edit_window_carries_a_form_not_a_direct_write(
+async def test_editing_needs_no_view_state_at_all(
         redis_mock, make_ctx, seed_index, seed_memory):
-    """Edit opens a field pre-filled with the note's real text."""
+    """A stale edit= from an old link must do nothing whatsoever.
+
+    Old bookmarks and the browser back button both replay params, so the
+    retired flag has to be inert rather than merely unused.
+    """
     seed_index("imp_u_TEST", "abc123")
     seed_memory("imp_u_TEST", "abc123", ["deploys via deploy.sh"])
+    ctx = make_ctx("imp_u_TEST")
 
-    out = repr(await panels.memory_panel(
-        make_ctx("imp_u_TEST"), repo="abc123", edit="1",
-        token=note_token("deploys via deploy.sh")))
+    plain = repr(await panels.memory_panel(ctx, repo="abc123"))
+    stale = repr(await panels.memory_panel(ctx, repo="abc123", edit="1",
+                                           token=note_token("deploys via deploy.sh")))
 
-    assert "TextArea" in out
-    assert "deploys via deploy.sh" in out
-    assert "'action': 'edit_note'" in out
+    assert stale == plain, "a retired edit= param still changed the view"
+    assert "TextArea" in stale                  # the inline editor is there
+    assert "'action': 'edit_note'" in stale     # submitted by the user, not us
 
 
 # ── 4. The graph must carry the repo's REAL weight ─────────────────────

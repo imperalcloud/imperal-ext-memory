@@ -169,40 +169,13 @@ def forget_note_modal(repo_key: str, pos: int, entries: list) -> ui.UINode:
     )
 
 
-def edit_note_modal(repo_key: str, pos: int, entries: list) -> ui.UINode:
-    """The editing window: a form pre-filled with the note's current text.
-
-    Not destructive, so it stays dismissible (Esc / backdrop / ✕ all work).
-    The form carries its own submit button, hence ``confirm_label=""`` — a
-    second confirm button would fire nothing and just look broken.
-    """
-    text = str(entries[pos - 1].get("note") or "")
-    return _modal(
-        title=f"Edit note #{pos}",
-        subtitle="Saved straight to this repo's memory",
-        size="xl",
-        confirm_label="",
-        cancel_label="← Back",
-        on_close=_nav(repo=repo_key),
-        content=ui.Stack(direction="v", gap=2, children=[
-            _back_button(repo_key, "← Back to repo"),
-            ui.Form(
-                action="edit_note",
-                submit_label="Save this note",
-                defaults={"repo": repo_key, "position": pos},
-                children=[
-                    ui.TextArea(param_name="note", value=text, rows=10,
-                                label=f"Note #{pos} (max {NOTE_CHARS} chars)",
-                                description="Secrets are stripped automatically "
-                                            "before saving.",
-                                required=True),
-                ],
-            ),
-            ui.Text(content="Closing without saving leaves the note as it is.",
-                    variant="caption"),
-        ]),
-    )
-
+# There is deliberately NO edit-note modal here any more.
+#
+# Editing a note is not a decision that needs confirming — it is a text field.
+# It now lives inline in the notes card as a collapsible editor that the
+# browser opens on its own: no param, no request, no re-render of the section.
+# A window was the wrong shape for it, and being driven by view state it could
+# reappear after its own save. Modals stay for the two DESTRUCTIVE steps only.
 
 __all__ = ["note_token", "token_matches", "erase_repo_modal",
-           "forget_note_modal", "edit_note_modal"]
+           "forget_note_modal"]

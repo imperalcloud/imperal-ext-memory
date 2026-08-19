@@ -30,8 +30,11 @@ _RETENTION_DAYS = REPO_MEM_TTL // 86400
 # ``token`` is the fingerprint of the note a modal is about (see
 # panels_modals.note_token): it is what stops a stale ``edit=2``/``forget=2``
 # from re-opening a modal over a note that has since been saved or deleted.
-_VIEW_STATE = ("repo", "section", "edit", "forget", "confirm", "node_id",
-               "token")
+# "edit" is deliberately ABSENT: editing a note is no longer a view state at
+# all. It is an inline collapsible editor the browser opens by itself, so it
+# needs no param, no request and no re-render. Only the two destructive
+# confirmations still travel as state.
+_VIEW_STATE = ("repo", "section", "forget", "confirm", "node_id", "token")
 
 
 def _nav(_omit: tuple = (), **state):

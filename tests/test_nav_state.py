@@ -44,16 +44,17 @@ async def test_every_nav_action_is_self_describing(redis_mock, make_ctx,
     surfaces = [
         tree(await panels.repos_panel(make_ctx("imp_u_TEST"))),
         tree(await panels.memory_panel(make_ctx("imp_u_TEST"), repo="abc123")),
-        tree(await panels.memory_panel(make_ctx("imp_u_TEST"), repo="abc123", edit="1")),
         tree(await panels.memory_panel(make_ctx("imp_u_TEST"), repo="abc123", forget="1")),
         tree(await panels.memory_panel(make_ctx("imp_u_TEST"), section="storage")),
     ]
     # Every state key the panel reads must appear in the rendered actions, so
-    # no click can leave a previous value in place.
-    for name, out in zip(("inventory", "repo", "edit", "forget", "storage"), surfaces):
+    # no click can leave a previous value in place. "edit" is NOT among them:
+    # editing is an inline disclosure handled by the browser, so it never
+    # travels as view state at all.
+    for name, out in zip(("inventory", "repo", "forget", "storage"), surfaces):
         if "__panel__memory" not in out:
             continue
-        for key in ("repo", "section", "edit", "forget", "confirm"):
+        for key in ("repo", "section", "forget", "confirm"):
             assert f"'{key}'" in out, f"{name} surface omits {key} from its nav payload"
 
 

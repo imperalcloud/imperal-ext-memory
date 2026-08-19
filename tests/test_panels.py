@@ -72,51 +72,60 @@ async def test_explainer_works_for_a_user_with_no_memory(redis_mock, make_ctx):
 @pytest.mark.asyncio
 async def test_edit_renders_a_prefilled_form_instead_of_saving(
         redis_mock, make_ctx, seed_index, seed_memory):
-    """edit=<n> must produce a form pre-filled with that note's CURRENT text."""
+    """Every note ships its editor inline, pre-filled with its CURRENT text.
+
+    No param opens it: the field is already in the tree, inside a collapsible
+    the browser toggles on its own. That is what makes Edit cost no request.
+    """
     seed_index("imp_u_TEST", "abc123")
     seed_memory("imp_u_TEST", "abc123", ["deploys via deploy.sh", "never edit current/"])
 
-    out = tree(await panels.memory_panel(make_ctx("imp_u_TEST"),
-                                         repo="abc123", edit="1"))
+    out = tree(await panels.memory_panel(make_ctx("imp_u_TEST"), repo="abc123"))
 
     assert "'action': 'edit_note'" in out       # a form, submitted by the user
     assert "TextArea" in out                    # with an actual editable field
     assert "deploys via deploy.sh" in out       # pre-filled with the real text
     assert "'position'" in out                  # and carrying the position
+    assert "'collapsible': True" in out         # opened client-side, not by us
 
 
 @pytest.mark.asyncio
 async def test_note_view_does_not_call_edit_note_on_click(
         redis_mock, make_ctx, seed_index, seed_memory):
-    """The Edit BUTTON must open the form — never invoke the write directly.
+    """Nothing on the notes card may write on a click.
 
-    This is the actual regression guard: the old button called edit_note with
-    the unchanged text, which is why it looked like nothing happened.
+    Two regressions in one guard. The first Edit button called edit_note with
+    the unchanged text, so pressing it looked like nothing happened. The
+    replacement opened a window via an ``edit=N`` param, which re-rendered the
+    section and could pop back up after its own save. The editor is now inline
+    and client-side: no write action, and no edit state in any nav payload.
     """
     seed_index("imp_u_TEST", "abc123")
     seed_memory("imp_u_TEST", "abc123", ["a fact"])
 
     out = tree(await panels.memory_panel(make_ctx("imp_u_TEST"), repo="abc123"))
 
-    assert "'function': 'edit_note'" not in out
-    assert "'edit': '1'" in out or "'edit': 1" in out
+    assert "'function': 'edit_note'" not in out   # never a direct write
+    assert "'edit':" not in out                   # and never a view-state hop
+    assert "'action': 'edit_note'" in out         # only a form the user submits
 
 
 @pytest.mark.asyncio
-async def test_out_of_range_and_junk_edit_positions_are_ignored(
+async def test_out_of_range_and_junk_forget_positions_are_ignored(
         redis_mock, make_ctx, seed_index, seed_memory):
-    """A bad edit= must render the normal view, never raise.
+    """A bad forget= must render the normal view, never raise.
 
     Panel params arrive as strings from the frontend, so a non-numeric value
-    is a routine input, not an exceptional one.
+    is a routine input, not an exceptional one. A stale param from a bookmark
+    or a browser back button lands here too.
     """
     seed_index("imp_u_TEST", "abc123")
     seed_memory("imp_u_TEST", "abc123", ["only note"])
     ctx = make_ctx("imp_u_TEST")
 
     for bad in ("99", "0", "-3", "abc", ""):
-        out = tree(await panels.memory_panel(ctx, repo="abc123", edit=bad))
-        assert "'action': 'edit_note'" not in out, f"edit={bad!r} opened a form"
+        out = tree(await panels.memory_panel(ctx, repo="abc123", forget=bad))
+        assert "Forget this note" not in out, f"forget={bad!r} opened a window"
         assert "Code index" in out
 
 

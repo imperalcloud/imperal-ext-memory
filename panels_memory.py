@@ -8,14 +8,18 @@ selected by view state:
     repo=<key>             → that repo in full: graph, charts, index, notes
     section=storage        → the storage explainer
     repo=… & confirm=1     → erase-repo confirmation, layered ON TOP
-    repo=… & edit=N        → editing window for note N, layered ON TOP
     repo=… & forget=N      → forget-note confirmation, layered ON TOP
 
-MODALS ARE OVERLAYS, NOT REPLACEMENTS. The previous version returned the modal
-INSTEAD of the view, so opening Edit blanked the whole section behind it and
-felt like a full reload. ``ui.Modal`` layers over the current panel, so the
-repo view is built once and the window is appended on top of it — the content
-underneath stays exactly where it was, and only a save changes it.
+EDITING A NOTE IS NOT A VIEW STATE. It is an inline collapsible editor inside
+the notes card, opened by the browser alone: no param, no request, no
+re-render. Only Save posts, and only that note changes. Windows are reserved
+for the two destructive steps, which must be confirmed rather than toggled.
+
+MODALS ARE OVERLAYS, NOT REPLACEMENTS. An earlier version returned the modal
+INSTEAD of the view, which blanked the whole section behind it and felt like a
+full reload. ``ui.Modal`` layers over the current panel, so the repo view is
+built once and the window appended on top — the content underneath stays
+exactly where it was.
 
 EVERY VIEW HAS A ← BACK. Each one goes exactly one step: a modal back to its
 repo, a repo back to the overview, the explainer back to wherever it was
@@ -31,12 +35,7 @@ from imperal_sdk import ui
 from app import _user_id, ext, load_indexes, load_memories, pick, repo_name
 from panels_cards import _index_card, _notes_card
 from panels_common import _empty, _err, _nav
-from panels_modals import (
-    edit_note_modal,
-    erase_repo_modal,
-    forget_note_modal,
-    token_matches,
-)
+from panels_modals import erase_repo_modal, forget_note_modal, token_matches
 from panels_overview import overview_body
 from panels_storage import storage_body
 from panels_viz import graph_focus_path, index_charts, index_graph
@@ -157,14 +156,14 @@ async def memory_panel(ctx, **kwargs):
     # Each is bound to the note it was opened for via `token`, so a state param
     # that outlives its subject (note saved, note deleted, list shifted) simply
     # stops matching and the window does not come back.
+    # Editing is NOT here: a note's editor is an inline collapsible section
+    # inside the notes card, opened entirely in the browser. Only destructive
+    # steps get a window, because they need confirming rather than toggling.
     token = str(kwargs.get("token") or "")
-    edit_pos = _pos(kwargs.get("edit"))
     forget_pos = _pos(kwargs.get("forget"))
 
     if _truthy(kwargs.get("confirm")):
         children.append(erase_repo_modal(repo_key, label, entries, idx))
-    elif 1 <= edit_pos <= len(entries) and token_matches(entries, edit_pos, token):
-        children.append(edit_note_modal(repo_key, edit_pos, entries))
     elif 1 <= forget_pos <= len(entries) and token_matches(entries, forget_pos, token):
         children.append(forget_note_modal(repo_key, forget_pos, entries))
 

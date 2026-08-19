@@ -74,14 +74,28 @@ def _index_card(d: dict) -> ui.Card:
 
 
 def _notes_card(repo_key: str, entries: list) -> ui.Card:
-    """Durable notes — every one editable and deletable by its owner.
+    """Durable notes — every one editable in place, deletable with a warning.
 
-    Editing happens in a modal window layered ON TOP of this card, not in
-    place of it: the previous version swapped the note's row for an inline
-    form, which re-rendered the whole section and lost the reader's place.
-    Both buttons carry a ``token`` — the fingerprint of the note's current
-    text — so the modal they open is bound to THAT note and cannot reappear
-    over a different one after a save or a delete shifts the list.
+    EDITING IS INLINE, NOT A WINDOW. Each note carries its own collapsible
+    editor holding the note's current text. ``ui.Section(collapsible=True)``
+    opens and closes in the browser, so revealing the field costs no server
+    round-trip at all: nothing re-renders, nothing is fetched, the reader's
+    place is kept, and other notes stay exactly as they were. Only pressing
+    Save submits — the form posts to ``edit_note`` and just that note comes
+    back updated.
+
+    This replaces two earlier attempts, and both failures are worth keeping in
+    mind. Swapping the note's row for a form re-rendered the whole section on
+    every Edit click. Moving the form into a modal stopped the section
+    reloading, but a popup is the wrong shape for "make this text editable" —
+    and being driven by view state, it could reappear after its own save.
+    A client-side disclosure has neither problem.
+
+    Forget stays a modal on purpose: erasing a distilled note is destructive
+    and unrecoverable, so it must be confirmed, not toggled. Its button
+    carries a ``token`` — the fingerprint of the note's current text — so the
+    confirmation is bound to THAT note and cannot re-aim at another one after
+    a delete shifts the list.
     """
     children = [
         ui.Alert(type="info", message=(
@@ -111,13 +125,28 @@ def _notes_card(repo_key: str, entries: list) -> ui.Card:
             rows.append(ui.Section(title=f"#{idx} · {meta}", children=[
                 ui.Text(content=text),
                 ui.Text(content=("cites: " + ", ".join(cites)) if cites else "no file cited"),
+                # The editor lives here, collapsed. Opening it is a browser
+                # toggle — no request, no re-render — and the field already
+                # holds this note's current text, so it is editable the moment
+                # it appears. Submitting posts to edit_note and refreshes just
+                # this note; nothing else on the panel moves.
+                ui.Section(title="✎ Edit this note", collapsible=True, children=[
+                    ui.Form(
+                        action="edit_note",
+                        submit_label="Save",
+                        defaults={"repo": repo_key, "position": str(idx)},
+                        children=[
+                            ui.TextArea(
+                                param_name="note",
+                                value=text,
+                                rows=4,
+                                label=f"Note #{idx} (max {NOTE_CHARS} chars)"),
+                        ],
+                    ),
+                ]),
                 ui.Stack(direction="h", gap=1, children=[
-                    # Both controls only re-render THIS panel with a param —
-                    # edit opens the editing window, forget opens a strict
-                    # confirmation. Neither mutates anything on first click.
-                    ui.Button(label="Edit", variant="secondary", icon="Pencil",
-                              on_click=_nav(repo=repo_key, edit=str(idx),
-                                            token=tok)),
+                    # Forget only re-renders this panel with a param — the
+                    # strict confirmation. It never deletes on first click.
                     ui.Button(label="Forget", variant="danger", icon="Trash2",
                               on_click=_nav(repo=repo_key, forget=str(idx),
                                             token=tok)),

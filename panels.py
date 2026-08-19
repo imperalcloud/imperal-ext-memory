@@ -29,7 +29,6 @@ from panels_cards import _index_card, _notes_card  # noqa: F401
 from panels_common import _empty, _err, _inventory  # noqa: F401
 from panels_memory import memory_panel  # noqa: F401
 from panels_modals import (  # noqa: F401
-    edit_note_modal,
     erase_repo_modal,
     forget_note_modal,
     note_token,
@@ -42,5 +41,5 @@ from panels_viz import graph_focus_path, index_charts, index_graph  # noqa: F401
 
 __all__ = ["repos_panel", "memory_panel", "overview_body", "storage_body",
            "index_graph", "index_charts", "graph_focus_path",
-           "erase_repo_modal", "forget_note_modal", "edit_note_modal",
+           "erase_repo_modal", "forget_note_modal",
            "note_token", "token_matches"]
