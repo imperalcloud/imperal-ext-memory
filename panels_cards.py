@@ -12,6 +12,7 @@ import logging
 from imperal_sdk import ui
 
 from app import MAX_ENTRIES, NOTE_CHARS, REPO_MEM_TTL, age, repo_name
+from panels_common import _nav
 
 log = logging.getLogger("memory-index")
 
@@ -109,7 +110,7 @@ def _notes_card(repo_key: str, entries: list, editing: int = 0) -> ui.Card:
                         ],
                     ),
                     ui.Button(label="Cancel", variant="ghost", size="sm",
-                              on_click=ui.Call("__panel__memory", repo=repo_key)),
+                              on_click=_nav(repo=repo_key)),
                 ]))
                 continue
 
@@ -121,11 +122,9 @@ def _notes_card(repo_key: str, entries: list, editing: int = 0) -> ui.Card:
                     # edit opens the form, forget opens a confirmation modal.
                     # Neither mutates anything on the first click.
                     ui.Button(label="Edit", variant="secondary", icon="Pencil",
-                              on_click=ui.Call("__panel__memory",
-                                               repo=repo_key, edit=str(idx))),
+                              on_click=_nav(repo=repo_key, edit=str(idx))),
                     ui.Button(label="Forget", variant="danger", icon="Trash2",
-                              on_click=ui.Call("__panel__memory",
-                                               repo=repo_key, forget=str(idx))),
+                              on_click=_nav(repo=repo_key, forget=str(idx))),
                 ]),
             ]))
         children.append(ui.Stack(direction="v", gap=2, children=rows))

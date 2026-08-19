@@ -22,7 +22,7 @@ from app import (
     load_indexes,
     load_memories,
 )
-from panels_common import _err
+from panels_common import _err, _nav
 
 log = logging.getLogger("memory-index")
 
@@ -101,7 +101,7 @@ async def storage_body(uid: str, back_repo: str = ""):
     children = []
     if back_repo:
         children.append(ui.Button(label="← Back to repo", variant="ghost", size="sm",
-                                  on_click=ui.Call("__panel__memory", repo=back_repo)))
+                                  on_click=_nav(repo=back_repo)))
     children += [
         ui.Header(text="Where your repo memory lives",
                   subtitle="Every store, who writes it, and when it changes"),

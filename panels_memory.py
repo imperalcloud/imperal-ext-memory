@@ -13,7 +13,7 @@ from imperal_sdk import ui
 
 from app import _user_id, ext, load_indexes, load_memories, pick, repo_name
 from panels_cards import _index_card, _notes_card
-from panels_common import _empty, _err
+from panels_common import _empty, _err, _nav
 from panels_storage import storage_body
 from panels_viz import index_charts, index_graph
 
@@ -100,7 +100,7 @@ async def memory_panel(ctx, **kwargs):
                 ]),
             ),
             ui.Button(label="Cancel", variant="ghost", size="sm",
-                      on_click=ui.Call("__panel__memory", repo=repo_key)),
+                      on_click=_nav(repo=repo_key)),
         ])
 
     # Confirm step: the button re-renders THIS panel with confirm=1, which is
@@ -133,7 +133,7 @@ async def memory_panel(ctx, **kwargs):
                 ]),
             ),
             ui.Button(label="← Keep it", variant="ghost", size="sm",
-                      on_click=ui.Call("__panel__memory", repo=repo_key)),
+                      on_click=_nav(repo=repo_key)),
         ])
 
     children = [
@@ -165,7 +165,6 @@ async def memory_panel(ctx, **kwargs):
                     "and every durable note, with nothing left in storage."),
             ui.Button(label="Erase this repo's memory", variant="danger",
                       icon="Trash2",
-                      on_click=ui.Call("__panel__memory", repo=repo_key,
-                                       confirm="1")),
+                      on_click=_nav(repo=repo_key, confirm="1")),
         ])))
     return ui.Stack(direction="v", gap=2, children=children)

@@ -22,6 +22,8 @@ import re
 
 from imperal_sdk import ui
 
+from panels_common import _nav
+
 log = logging.getLogger("memory-index")
 
 # "name (kind) @ path/to/file.py:123" — the exact shape core/repo_index_map.py
@@ -125,9 +127,11 @@ def index_graph(d: dict, repo_label: str, focus: str = "") -> ui.Card | None:
                 min_node_size=14,
                 max_node_size=64,
                 # The clicked node's id arrives as node_id; the panel turns a
-                # "file::<path>" id back into a focus path.
-                on_node_click=ui.Call("__panel__memory",
-                                      repo=str(d.get("_repo_key") or "")),
+                # "file::<path>" id back into a focus path. node_id is OMITTED
+                # from the action rather than blanked: ui.Graph injects it, so
+                # pinning it to "" here would erase the click's own payload.
+                on_node_click=_nav(_omit=("node_id",),
+                                   repo=str(d.get("_repo_key") or "")),
             ),
         ]),
     )

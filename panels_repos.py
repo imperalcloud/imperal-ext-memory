@@ -12,7 +12,7 @@ import logging
 from imperal_sdk import ui
 
 from app import _user_id, ext, repo_name
-from panels_common import _empty, _err, _inventory
+from panels_common import _empty, _err, _inventory, _nav
 
 log = logging.getLogger("memory-index")
 
@@ -51,7 +51,7 @@ async def repos_panel(ctx, **kwargs):
                       # Routed through the memory panel as a section: a second
                       # slot="center" panel is not reliably mounted, so calling
                       # __panel__storage directly did nothing at all on click.
-                      on_click=ui.Call("__panel__memory", section="storage")),
+                      on_click=_nav(section="storage")),
         ])),
     ]
 
@@ -68,7 +68,7 @@ async def repos_panel(ctx, **kwargs):
             id=r["repo_key"],
             title=repo_name(r["repo_root"], r["repo_key"]),
             subtitle=" · ".join(badges) + (f" · indexed {r['indexed']}" if r["has_index"] else ""),
-            on_click=ui.Call("__panel__memory", repo=r["repo_key"]),
+            on_click=_nav(repo=r["repo_key"]),
         ))
 
     children.append(ui.Section(title="Repositories", children=[ui.List(items=items)]))

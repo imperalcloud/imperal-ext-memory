@@ -24,6 +24,38 @@ log = logging.getLogger("memory-index")
 _RETENTION_DAYS = REPO_MEM_TTL // 86400
 
 
+# Every piece of view state the memory panel reads out of kwargs. Listed once,
+# here, so a new state param cannot be added to the panel without also being
+# cleared by every navigation action.
+_VIEW_STATE = ("repo", "section", "edit", "forget", "confirm", "node_id")
+
+
+def _nav(_omit: tuple = (), **state):
+    """A SELF-DESCRIBING navigation into the memory panel.
+
+    Every view-state param is sent on every click — the ones not named by the
+    caller are sent as empty strings rather than omitted. That is the whole
+    point: params from a click are merged onto the panel's current state, so an
+    omitted param KEEPS its old value. That is how "How is this stored?" broke
+    repo clicks — it set section=storage, and a later click carrying only
+    repo=... left section=storage in place, so the explainer stayed on screen
+    and the repo never opened.
+
+    Sending the full set makes each click describe the whole view instead of a
+    delta, which fixes the bug whether or not the host merges — no guessing
+    about host behaviour required.
+
+    ``_omit`` drops a key from the payload entirely, for the one case where
+    something else owns it: ui.Graph injects the clicked node's id as
+    ``node_id``, so that key must not be pinned to "" by the action itself.
+    """
+    unknown = set(state) - set(_VIEW_STATE)
+    if unknown:  # a typo'd param would silently never reach the panel
+        raise ValueError(f"unknown view-state param(s): {sorted(unknown)}")
+    params = {k: str(state.get(k) or "") for k in _VIEW_STATE if k not in _omit}
+    return ui.Call("__panel__memory", **params)
+
+
 def _err(message: str) -> ui.Stack:
     return ui.Stack(children=[ui.Alert(message=message, type="error")])
 
