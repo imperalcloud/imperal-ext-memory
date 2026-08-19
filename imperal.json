@@ -1769,15 +1769,6 @@
   },
   "panels": [
     {
-      "panel_id": "repos",
-      "slot": "left",
-      "title": "Memory & Index",
-      "tree": {},
-      "icon": "BrainCircuit",
-      "refresh": "manual",
-      "center_overlay": false
-    },
-    {
       "panel_id": "memory",
       "slot": "center",
       "title": "Repo memory",
@@ -1785,6 +1776,15 @@
       "icon": "BrainCircuit",
       "refresh": "manual",
       "center_overlay": true
+    },
+    {
+      "panel_id": "repos",
+      "slot": "left",
+      "title": "Memory & Index",
+      "tree": {},
+      "icon": "BrainCircuit",
+      "refresh": "manual",
+      "center_overlay": false
     },
     {
       "panel_id": "storage",
