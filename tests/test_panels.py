@@ -222,3 +222,32 @@ async def test_unparsable_symbols_are_skipped_not_guessed(redis_mock, make_ctx,
 
     assert "type='Graph'" not in out
     assert "Code index" in out
+
+
+# ── 6. Exactly ONE center panel may be registered ─────────────────────
+
+def test_only_one_center_panel_is_registered():
+    """Two slot="center" panels fight over one surface — the loser goes blank.
+
+    This shipped TWICE. Only one panel can own the center; the one registered
+    FIRST takes it, and the other's responses render nowhere:
+
+      * `memory` first  -> repo view worked, the explainer button did nothing.
+      * `storage` first -> explainer showed, repo view was empty. That flip was
+        caused by nothing more than an import: panels_memory importing
+        storage_body pulled panels_storage in earlier.
+
+    So the guard cannot be "don't add a center panel" — it has to be counted,
+    because a plain import is enough to change who wins. The explainer is a
+    function rendered at section=storage instead.
+    """
+    import main
+
+    ext = getattr(main, "ext", None) or getattr(main, "app", None)
+    centers = [pid for pid, meta in getattr(ext, "_panels", {}).items()
+               if meta.get("slot") == "center"]
+
+    assert centers == ["memory"], (
+        f"expected exactly one center panel ('memory'), got {centers} — "
+        "a second slot='center' panel silently blanks whichever loses the slot"
+    )
