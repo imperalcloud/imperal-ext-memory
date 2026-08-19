@@ -1,9 +1,9 @@
-"""Memory & Index · Center panel — where memory actually lives.
+"""Memory & Index · The storage explainer — a BODY, not a panel.
 
-Split out of ``panels.py`` (the deploy validator warns above 300 lines).
-Panels register via the ``@ext.panel`` decorator at import time, so
-``panels.py`` imports every part — importing it registers all three panels
-exactly as before.
+This module deliberately registers NO panel; see the note at the bottom of the
+file for why that matters (two center panels fight over one surface). It just
+builds the explainer tree, and ``panels_memory`` renders it at
+``section=storage`` inside the single center panel.
 """
 from __future__ import annotations
 
@@ -17,8 +17,6 @@ from app import (
     MEMORY_PREFIX,
     NOTE_CHARS,
     REPO_MEM_TTL,
-    _user_id,
-    ext,
     load_indexes,
     load_memories,
 )
@@ -132,20 +130,23 @@ async def storage_body(uid: str, back_repo: str = ""):
     return ui.Stack(direction="v", gap=2, children=children)
 
 
-@ext.panel("storage", slot="center", title="How memory is stored", icon="Database",
-           refresh="manual", center_overlay=True)
-async def storage_panel(ctx, **kwargs):
-    """Plain explanation of every store — with this user's live numbers.
-
-    Kept registered so the explainer stays reachable as its own surface (and
-    so nothing that already links to ``__panel__storage`` breaks), but the
-    button in the inventory no longer relies on it: it routes through the
-    memory panel's ``section=storage``, which is a mount path proven to work.
-    """
-    uid = _user_id(ctx)
-    if not uid:
-        return _err("Could not identify you — reopen the panel.")
-    return await storage_body(uid, back_repo=str(kwargs.get("repo") or ""))
-
-
-__all__ = ["storage_body", "storage_panel"]
+# NO @ext.panel HERE — deliberately, and this is the whole bug of this round.
+#
+# Two panels declaring slot="center" compete for ONE center surface, and the
+# one registered FIRST wins it. This extension had exactly that: `storage` and
+# `memory` both center. Whichever imported first took the slot, and the other
+# one's responses went nowhere:
+#
+#   * round 1: `memory` registered first -> repo view rendered, and the
+#     "How is this stored?" button appeared to do nothing.
+#   * round 2: panels_memory started importing `storage_body` from here, which
+#     imports THIS module before `memory` is registered -> `storage` took the
+#     slot, so the explainer showed and the repo view went blank.
+#
+# So the two symptoms were never two bugs; they were the same zero-sum fight
+# over one slot, and each "fix" only swapped the winner. The extensions that
+# work (admin, billing, automations) each register exactly ONE center panel and
+# switch views with a parameter inside it. That is what this file does now: the
+# explainer is a FUNCTION rendered by the memory panel at section=storage, so
+# no second center panel exists to steal the surface.
+__all__ = ["storage_body"]

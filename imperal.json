@@ -1976,15 +1976,6 @@
   },
   "panels": [
     {
-      "panel_id": "storage",
-      "slot": "center",
-      "title": "How memory is stored",
-      "tree": {},
-      "icon": "Database",
-      "refresh": "manual",
-      "center_overlay": true
-    },
-    {
       "panel_id": "memory",
       "slot": "center",
       "title": "Repo memory",
