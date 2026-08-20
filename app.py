@@ -27,7 +27,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import time
 
 import redis.asyncio as aioredis
 
@@ -119,18 +118,11 @@ def sanitize_note(text: str) -> str:
 
 # ── Shared read helpers ───────────────────────────────────────────────
 
-def age(ts) -> str:
-    """Human staleness. Unknown timestamps say so rather than implying 'now'."""
-    if not isinstance(ts, (int, float)) or ts <= 0:
-        return "unknown"
-    mins = max(0, int((time.time() - ts) // 60))
-    if mins < 1:
-        return "just now"
-    if mins < 60:
-        return f"{mins}m ago"
-    if mins < 1440:
-        return f"{mins // 60}h ago"
-    return f"{mins // 1440}d ago"
+# ts()/age() live in timestamps.py: the kernel writes these two stores with
+# several timestamp shapes at once (ISO str / epoch int / None), and comparing
+# them raw once took the whole panel down. Re-exported here so the existing
+# `from app import age` call sites keep working unchanged.
+from timestamps import age, ts  # noqa: E402,F401 (re-exported for call sites)
 
 
 def repo_name(root: str, fallback: str = "") -> str:
@@ -170,7 +162,7 @@ async def load_indexes(uid: str) -> list[dict]:
             await r.aclose()
     except Exception:
         log.warning("index scan failed (fail-soft empty)", exc_info=True)
-    out.sort(key=lambda d: d.get("updated_at") or 0, reverse=True)
+    out.sort(key=lambda d: ts(d.get("updated_at")), reverse=True)
     return out
 
 
@@ -189,9 +181,13 @@ async def load_memories(uid: str) -> list[dict]:
     except Exception:
         log.warning("memory scan failed (fail-soft empty)", exc_info=True)
 
-    def _newest(d: dict):
-        return max((e.get("distilled_at") or e.get("edited_at") or 0)
-                   for e in d["entries"]) if d.get("entries") else 0
+    def _newest(d: dict) -> float:
+        # Every candidate goes through ts() FIRST: entries in one repo can mix
+        # ISO strings and epoch ints, so even max() over a single note set
+        # could raise before this.
+        return max((max(ts(e.get("distilled_at")), ts(e.get("edited_at")))
+                    for e in d["entries"] if isinstance(e, dict)),
+                   default=0.0) if d.get("entries") else 0.0
 
     out.sort(key=_newest, reverse=True)
     return out

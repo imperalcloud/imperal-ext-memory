@@ -18,6 +18,7 @@ from app import (
     load_memories,
     repo_name,
 )
+from app import ts as app_ts   # aliased: bare `ts` reads as a variable at call sites
 
 log = logging.getLogger("memory-index")
 
@@ -125,5 +126,8 @@ async def _inventory(uid: str) -> list[dict]:
         row["has_notes"] = bool(entries)
 
     rows = list(by_key.values())
-    rows.sort(key=lambda r: (r.get("updated_at") or 0, r.get("note_count") or 0), reverse=True)
+    # ts() normalises mixed kernel timestamp shapes (ISO str / epoch int /
+    # None) -- comparing them raw took the whole panel down once.
+    rows.sort(key=lambda r: (app_ts(r.get("updated_at")), r.get("note_count") or 0),
+              reverse=True)
     return rows
