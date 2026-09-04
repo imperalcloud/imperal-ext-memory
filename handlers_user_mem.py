@@ -68,6 +68,7 @@ class DeleteUserFactParams(BaseModel):
     description="List durable user directives, workspace preferences, and infrastructure facts.",
 )
 async def fn_list_user_facts(ctx, params: ListUserFactsParams) -> ActionResult:
+    """List durable user facts, directives, and workspace preferences."""
     uid = _user_id(ctx)
     if not uid:
         return ActionResult.error("Could not identify the calling user.")
@@ -99,6 +100,7 @@ async def fn_list_user_facts(ctx, params: ListUserFactsParams) -> ActionResult:
     description="Teach Webbee a durable fact or directive about yourself or your workspace (remembered across sessions & surfaces).",
 )
 async def fn_add_user_fact(ctx, params: AddUserFactParams) -> ActionResult:
+    """Teach Webbee a durable fact or directive about yourself or your workspace."""
     uid = _user_id(ctx)
     if not uid:
         return ActionResult.error("Could not identify the calling user.")
@@ -151,6 +153,7 @@ async def fn_add_user_fact(ctx, params: AddUserFactParams) -> ActionResult:
     description="Update an existing durable user fact or directive by ID.",
 )
 async def fn_edit_user_fact(ctx, params: EditUserFactParams) -> ActionResult:
+    """Update an existing durable user fact or directive by ID."""
     uid = _user_id(ctx)
     if not uid:
         return ActionResult.error("Could not identify the calling user.")
@@ -208,6 +211,7 @@ async def fn_edit_user_fact(ctx, params: EditUserFactParams) -> ActionResult:
     description="Delete a durable user fact by its fact_id.",
 )
 async def fn_delete_user_fact(ctx, params: DeleteUserFactParams) -> ActionResult:
+    """Delete a durable user fact by its fact_id."""
     uid = _user_id(ctx)
     if not uid:
         return ActionResult.error("Could not identify the calling user.")

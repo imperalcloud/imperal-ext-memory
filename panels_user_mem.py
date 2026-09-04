@@ -70,12 +70,12 @@ def user_memory_card(facts: list[dict], selected_cat: str = "") -> ui.UINode:
                     children=[
                         ui.Input(
                             param_name="category",
-                            label="Category (directive / preference / infra / convention / identity)",
+                            placeholder="Category: directive, preference, infra, convention, identity",
                             value=selected_cat or "preference",
                         ),
                         ui.TextArea(
                             param_name="fact",
-                            label=f"Fact text (max {MAX_FACT_CHARS} chars)",
+                            placeholder=f"Fact text (max {MAX_FACT_CHARS} chars)",
                             rows=3,
                         ),
                     ],
@@ -124,12 +124,12 @@ def user_memory_card(facts: list[dict], selected_cat: str = "") -> ui.UINode:
                                     children=[
                                         ui.Input(
                                             param_name="category",
-                                            label="Category",
+                                            placeholder="Category: directive, preference, infra, convention, identity",
                                             value=f.get("category", "preference"),
                                         ),
                                         ui.TextArea(
                                             param_name="fact",
-                                            label=f"Fact text (max {MAX_FACT_CHARS} chars)",
+                                            placeholder=f"Fact text (max {MAX_FACT_CHARS} chars)",
                                             value=txt,
                                             rows=3,
                                         ),
@@ -179,7 +179,7 @@ def add_user_fact_modal(cat: str = "") -> ui.UINode:
                     children=[
                         ui.Select(
                             param_name="category",
-                            label="Category",
+                            placeholder="Select category",
                             options=[
                                 {"value": "directive", "label": "Directive (strict rule)"},
                                 {"value": "preference", "label": "Preference (style/workflow)"},
@@ -191,8 +191,7 @@ def add_user_fact_modal(cat: str = "") -> ui.UINode:
                         ),
                         ui.TextArea(
                             param_name="fact",
-                            label=f"Fact or rule (max {MAX_FACT_CHARS} chars)",
-                            placeholder="e.g. Always deploy via deploy runbook and verify health check.",
+                            placeholder=f"Fact or rule (max {MAX_FACT_CHARS} chars)",
                             rows=3,
                         ),
                     ],

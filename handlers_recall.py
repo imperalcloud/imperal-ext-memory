@@ -50,6 +50,7 @@ class RecallContextParams(BaseModel):
     description="Contextually retrieve relevant user directives and repo notes matching a query, keeping LLM prompts lean and relevant.",
 )
 async def fn_recall_context(ctx, params: RecallContextParams) -> ActionResult:
+    """Contextually retrieve relevant user directives and repo notes matching a query."""
     uid = _user_id(ctx)
     if not uid:
         return ActionResult.error("Could not identify the calling user.")
