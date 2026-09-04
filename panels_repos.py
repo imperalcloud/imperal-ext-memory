@@ -47,6 +47,8 @@ async def repos_panel(ctx, **kwargs):
                 ui.Stat(label="With notes", value=str(noted)),
                 ui.Stat(label="Notes", value=str(total_notes)),
             ]),
+            ui.Button(label="User & Workspace Facts", variant="primary", icon="UserCheck",
+                      on_click=_nav(section="user_memory")),
             ui.Button(label="How is this stored?", variant="secondary", icon="HelpCircle",
                       # Routed through the memory panel as a section: a second
                       # slot="center" panel is not reliably mounted, so calling

@@ -43,10 +43,27 @@ from handlers_writes import (  # noqa: F401
     fn_edit_note,
 )
 from handlers_purge import fn_delete_repo  # noqa: F401
+from handlers_user_mem import (  # noqa: F401
+    ListUserFactsParams,
+    AddUserFactParams,
+    EditUserFactParams,
+    DeleteUserFactParams,
+    fn_list_user_facts,
+    fn_add_user_fact,
+    fn_edit_user_fact,
+    fn_delete_user_fact,
+)
+from handlers_recall import (  # noqa: F401
+    RecallContextParams,
+    fn_recall_context,
+)
 
 __all__ = [
     "AddNoteParams", "DeleteNoteParams", "DeleteRepoParams", "EditNoteParams",
     "EmptyParams", "RepoParams", "fn_list_repos", "fn_get_index",
     "fn_list_notes", "fn_explain_memory", "fn_add_note", "fn_edit_note",
     "fn_delete_note", "fn_delete_repo",
+    "ListUserFactsParams", "AddUserFactParams", "EditUserFactParams", "DeleteUserFactParams",
+    "fn_list_user_facts", "fn_add_user_fact", "fn_edit_user_fact", "fn_delete_user_fact",
+    "RecallContextParams", "fn_recall_context",
 ]

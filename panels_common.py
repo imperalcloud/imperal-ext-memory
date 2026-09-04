@@ -35,7 +35,7 @@ _RETENTION_DAYS = REPO_MEM_TTL // 86400
 # all. It is an inline collapsible editor the browser opens by itself, so it
 # needs no param, no request and no re-render. Only the two destructive
 # confirmations still travel as state.
-_VIEW_STATE = ("repo", "section", "forget", "confirm", "node_id", "token")
+_VIEW_STATE = ("repo", "section", "forget", "confirm", "node_id", "token", "cat", "delete_fact")
 
 
 def _nav(_omit: tuple = (), **state):

@@ -1,10 +1,10 @@
 {
   "manifest_schema_version": 3,
-  "sdk_version": "5.10.0",
+  "sdk_version": "5.13.1",
   "app_id": "memory-index",
   "version": "1.0.0",
   "name": "Memory & Index",
-  "description": "See and edit what Webbee remembers about your code — the code index (files, languages, symbols, commit) and the durable notes distilled while coding, with a plain explanation of where each piece is stored and when it updates.",
+  "description": "See and edit what Webbee remembers about your code \u2014 the code index (files, languages, symbols, commit) and the durable notes distilled while coding, with a plain explanation of where each piece is stored and when it updates.",
   "icon": "icon.svg",
   "actions_explicit": true,
   "system": true,
@@ -15,7 +15,7 @@
   "tools": [
     {
       "name": "list_repos",
-      "description": "List every repository Webbee holds memory for — code index size, languages, how many durable notes, and how fresh each one is. Works on every surface (panel, Telegram, terminal).",
+      "description": "List every repository Webbee holds memory for \u2014 code index size, languages, how many durable notes, and how fresh each one is. Works on every surface (panel, Telegram, terminal).",
       "action_type": "read",
       "chain_callable": true,
       "effects": [],
@@ -329,7 +329,7 @@
         "properties": {
           "repo": {
             "default": "",
-            "description": "Which repo — its repo_key, or any fragment of its path/name. Empty = the most recently touched one.",
+            "description": "Which repo \u2014 its repo_key, or any fragment of its path/name. Empty = the most recently touched one.",
             "title": "Repo",
             "type": "string"
           }
@@ -681,7 +681,7 @@
     },
     {
       "name": "list_notes",
-      "description": "Show the durable notes Webbee has learned about a repository — the cloud-side WEBBEE.md: conventions, gotchas, where things live. Each note carries a position number for editing and when it was written.",
+      "description": "Show the durable notes Webbee has learned about a repository \u2014 the cloud-side WEBBEE.md: conventions, gotchas, where things live. Each note carries a position number for editing and when it was written.",
       "action_type": "read",
       "chain_callable": true,
       "effects": [],
@@ -690,7 +690,7 @@
         "properties": {
           "repo": {
             "default": "",
-            "description": "Which repo — its repo_key, or any fragment of its path/name. Empty = the most recently touched one.",
+            "description": "Which repo \u2014 its repo_key, or any fragment of its path/name. Empty = the most recently touched one.",
             "title": "Repo",
             "type": "string"
           }
@@ -701,7 +701,7 @@
       "return_schema": {
         "$defs": {
           "NoteRecord": {
-            "description": "One durable note about a repo — editable by its owner.",
+            "description": "One durable note about a repo \u2014 editable by its owner.",
             "properties": {
               "id": {
                 "anyOf": [
@@ -939,7 +939,7 @@
     },
     {
       "name": "explain_memory",
-      "description": "Explain exactly where Webbee's memory about your code is stored, what each store holds, who writes it and when it updates — with live counts from your own account.",
+      "description": "Explain exactly where Webbee's memory about your code is stored, what each store holds, who writes it and when it updates \u2014 with live counts from your own account.",
       "action_type": "read",
       "chain_callable": true,
       "effects": [],
@@ -951,7 +951,7 @@
         "type": "object"
       },
       "return_schema": {
-        "description": "Where each piece of repo memory lives and when it updates — live numbers.",
+        "description": "Where each piece of repo memory lives and when it updates \u2014 live numbers.",
         "properties": {
           "id": {
             "anyOf": [
@@ -1148,7 +1148,7 @@
     },
     {
       "name": "add_note",
-      "description": "Teach Webbee a durable fact about a repository — it is remembered across machines and surfaces, and used on later coding turns.",
+      "description": "Teach Webbee a durable fact about a repository \u2014 it is remembered across machines and surfaces, and used on later coding turns.",
       "action_type": "write",
       "chain_callable": true,
       "effects": [
@@ -1164,7 +1164,7 @@
           },
           "repo": {
             "default": "",
-            "description": "Which repo — repo_key or path fragment. Empty = most recent.",
+            "description": "Which repo \u2014 repo_key or path fragment. Empty = most recent.",
             "title": "Repo",
             "type": "string"
           },
@@ -1184,7 +1184,7 @@
         "type": "object"
       },
       "return_schema": {
-        "description": "Outcome of ONE note write (add / edit / delete).\n\nDeliberately NOT ``NoteRecord``: a write does not return the stored entity,\nit returns what CHANGED — the resulting text plus the displaced/removed\none and the surviving count. Typing it truthfully is what lets the narrator\nand the audit ledger describe the mutation without re-reading the store\n(federal V24).",
+        "description": "Outcome of ONE note write (add / edit / delete).\n\nDeliberately NOT ``NoteRecord``: a write does not return the stored entity,\nit returns what CHANGED \u2014 the resulting text plus the displaced/removed\none and the surviving count. Typing it truthfully is what lets the narrator\nand the audit ledger describe the mutation without re-reading the store\n(federal V24).",
         "properties": {
           "id": {
             "anyOf": [
@@ -1355,7 +1355,7 @@
     },
     {
       "name": "edit_note",
-      "description": "Correct one durable note by its position number (see list_notes) — the text is replaced and marked as edited by you.",
+      "description": "Correct one durable note by its position number (see list_notes) \u2014 the text is replaced and marked as edited by you.",
       "action_type": "write",
       "chain_callable": true,
       "effects": [
@@ -1365,7 +1365,7 @@
       "params_schema": {
         "properties": {
           "position": {
-            "description": "Which note to change — its position number from list_notes (1-based)",
+            "description": "Which note to change \u2014 its position number from list_notes (1-based)",
             "title": "Position",
             "type": "integer"
           },
@@ -1376,7 +1376,7 @@
           },
           "repo": {
             "default": "",
-            "description": "Which repo — repo_key or path fragment. Empty = most recent.",
+            "description": "Which repo \u2014 repo_key or path fragment. Empty = most recent.",
             "title": "Repo",
             "type": "string"
           }
@@ -1389,7 +1389,7 @@
         "type": "object"
       },
       "return_schema": {
-        "description": "Outcome of ONE note write (add / edit / delete).\n\nDeliberately NOT ``NoteRecord``: a write does not return the stored entity,\nit returns what CHANGED — the resulting text plus the displaced/removed\none and the surviving count. Typing it truthfully is what lets the narrator\nand the audit ledger describe the mutation without re-reading the store\n(federal V24).",
+        "description": "Outcome of ONE note write (add / edit / delete).\n\nDeliberately NOT ``NoteRecord``: a write does not return the stored entity,\nit returns what CHANGED \u2014 the resulting text plus the displaced/removed\none and the surviving count. Typing it truthfully is what lets the narrator\nand the audit ledger describe the mutation without re-reading the store\n(federal V24).",
         "properties": {
           "id": {
             "anyOf": [
@@ -1570,13 +1570,13 @@
       "params_schema": {
         "properties": {
           "position": {
-            "description": "Which note to forget — its position number from list_notes (1-based)",
+            "description": "Which note to forget \u2014 its position number from list_notes (1-based)",
             "title": "Position",
             "type": "integer"
           },
           "repo": {
             "default": "",
-            "description": "Which repo — repo_key or path fragment. Empty = most recent.",
+            "description": "Which repo \u2014 repo_key or path fragment. Empty = most recent.",
             "title": "Repo",
             "type": "string"
           }
@@ -1588,7 +1588,7 @@
         "type": "object"
       },
       "return_schema": {
-        "description": "Outcome of ONE note write (add / edit / delete).\n\nDeliberately NOT ``NoteRecord``: a write does not return the stored entity,\nit returns what CHANGED — the resulting text plus the displaced/removed\none and the surviving count. Typing it truthfully is what lets the narrator\nand the audit ledger describe the mutation without re-reading the store\n(federal V24).",
+        "description": "Outcome of ONE note write (add / edit / delete).\n\nDeliberately NOT ``NoteRecord``: a write does not return the stored entity,\nit returns what CHANGED \u2014 the resulting text plus the displaced/removed\none and the surviving count. Typing it truthfully is what lets the narrator\nand the audit ledger describe the mutation without re-reading the store\n(federal V24).",
         "properties": {
           "id": {
             "anyOf": [
@@ -1759,7 +1759,7 @@
     },
     {
       "name": "delete_repo",
-      "description": "Permanently erase EVERYTHING Webbee remembers about one repository — its code index AND all its durable notes — from storage, and verify afterwards that no key survived. This cannot be undone: the notes are gone for good, while the code index only comes back if that repo is opened in the Webbee terminal agent again.",
+      "description": "Permanently erase EVERYTHING Webbee remembers about one repository \u2014 its code index AND all its durable notes \u2014 from storage, and verify afterwards that no key survived. This cannot be undone: the notes are gone for good, while the code index only comes back if that repo is opened in the Webbee terminal agent again.",
       "action_type": "destructive",
       "chain_callable": true,
       "effects": [
@@ -1770,7 +1770,7 @@
       "params_schema": {
         "properties": {
           "repo": {
-            "description": "Which repo to erase — its repo_key, or a fragment of its path/name. Required: erasing whatever happens to be most recent would be a coin flip with the user's memory.",
+            "description": "Which repo to erase \u2014 its repo_key, or a fragment of its path/name. Required: erasing whatever happens to be most recent would be a coin flip with the user's memory.",
             "title": "Repo",
             "type": "string"
           }
@@ -1782,7 +1782,7 @@
         "type": "object"
       },
       "return_schema": {
-        "description": "Outcome of erasing ONE repo's memory — a verified fact, not an intent.\n\n``verified`` is the result of a fresh keyspace scan performed AFTER the\ndelete, and ``leftover_keys`` names anything that survived it. They are\nmodelled as first-class fields precisely so the answer cannot claim a\nclean wipe while something remains: if the re-scan finds a key, the\nrecord says so and the narrator has to report it.",
+        "description": "Outcome of erasing ONE repo's memory \u2014 a verified fact, not an intent.\n\n``verified`` is the result of a fresh keyspace scan performed AFTER the\ndelete, and ``leftover_keys`` names anything that survived it. They are\nmodelled as first-class fields precisely so the answer cannot claim a\nclean wipe while something remains: if the re-scan finds a key, the\nrecord says so and the narrator has to report it.",
         "properties": {
           "id": {
             "anyOf": [
@@ -1959,6 +1959,1026 @@
         "x-sdl": "entity"
       },
       "event": "repo_memory_erased",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "tool_memory_chat"
+    },
+    {
+      "name": "list_user_facts",
+      "description": "List durable user directives, workspace preferences, and infrastructure facts.",
+      "action_type": "read",
+      "chain_callable": true,
+      "effects": [],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "category": {
+            "default": "",
+            "description": "Optional filter by category: directive, preference, infra, convention, identity. Empty = all.",
+            "title": "Category",
+            "type": "string"
+          }
+        },
+        "title": "ListUserFactsParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "$defs": {
+          "UserFactRecord": {
+            "description": "One durable fact or directive about the user or their workspace.",
+            "properties": {
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "title": "Id"
+              },
+              "title": {
+                "title": "Title",
+                "type": "string"
+              },
+              "kind": {
+                "default": "",
+                "title": "Kind",
+                "type": "string"
+              },
+              "subtitle": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Subtitle"
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Description"
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Status"
+              },
+              "url": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Url"
+              },
+              "fact_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fact Id"
+              },
+              "category": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Category"
+              },
+              "fact": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fact"
+              },
+              "tags": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Tags"
+              },
+              "created_at": {
+                "anyOf": [
+                  {},
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Created At"
+              },
+              "updated_at": {
+                "anyOf": [
+                  {},
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Updated At"
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Source"
+              }
+            },
+            "required": [
+              "id",
+              "title"
+            ],
+            "title": "UserFactRecord",
+            "type": "object",
+            "x-sdl": "entity"
+          }
+        },
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/UserFactRecord"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Page"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "UserFactListResponse",
+        "type": "object",
+        "x-sdl": "entity-list"
+      },
+      "event": "",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "tool_memory_chat"
+    },
+    {
+      "name": "add_user_fact",
+      "description": "Teach Webbee a durable fact or directive about yourself or your workspace (remembered across sessions & surfaces).",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": [
+        "create:user_fact"
+      ],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "fact": {
+            "description": "Durable fact or preference to remember (max 500 chars)",
+            "title": "Fact",
+            "type": "string"
+          },
+          "category": {
+            "default": "preference",
+            "description": "Category: directive, preference, infra, convention, identity",
+            "title": "Category",
+            "type": "string"
+          },
+          "tags": {
+            "description": "Optional keywords/tags for contextual search, e.g. ['docker', 'deploy']",
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "fact"
+        ],
+        "title": "AddUserFactParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "description": "Outcome of adding, editing, or deleting a user fact.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Subtitle"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          },
+          "fact_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fact Id"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Action"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Category"
+          },
+          "fact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fact"
+          },
+          "total_facts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total Facts"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "UserFactOpRecord",
+        "type": "object",
+        "x-sdl": "entity"
+      },
+      "event": "user_fact_added",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "tool_memory_chat"
+    },
+    {
+      "name": "edit_user_fact",
+      "description": "Update an existing durable user fact or directive by ID.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": [
+        "update:user_fact"
+      ],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "fact_id": {
+            "description": "Unique ID of the fact to update",
+            "title": "Fact Id",
+            "type": "string"
+          },
+          "fact": {
+            "description": "Updated fact text (max 500 chars)",
+            "title": "Fact",
+            "type": "string"
+          },
+          "category": {
+            "default": "",
+            "description": "Updated category (empty keeps existing)",
+            "title": "Category",
+            "type": "string"
+          },
+          "tags": {
+            "description": "Updated list of tags (empty keeps existing)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "fact_id",
+          "fact"
+        ],
+        "title": "EditUserFactParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "description": "Outcome of adding, editing, or deleting a user fact.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Subtitle"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          },
+          "fact_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fact Id"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Action"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Category"
+          },
+          "fact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fact"
+          },
+          "total_facts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total Facts"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "UserFactOpRecord",
+        "type": "object",
+        "x-sdl": "entity"
+      },
+      "event": "user_fact_edited",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "tool_memory_chat"
+    },
+    {
+      "name": "delete_user_fact",
+      "description": "Delete a durable user fact by its fact_id.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": [
+        "delete:user_fact"
+      ],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "fact_id": {
+            "description": "Unique ID of the fact to delete",
+            "title": "Fact Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fact_id"
+        ],
+        "title": "DeleteUserFactParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "description": "Outcome of adding, editing, or deleting a user fact.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Subtitle"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          },
+          "fact_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fact Id"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Action"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Category"
+          },
+          "fact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fact"
+          },
+          "total_facts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total Facts"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "UserFactOpRecord",
+        "type": "object",
+        "x-sdl": "entity"
+      },
+      "event": "user_fact_deleted",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "tool_memory_chat"
+    },
+    {
+      "name": "recall_context",
+      "description": "Contextually retrieve relevant user directives and repo notes matching a query, keeping LLM prompts lean and relevant.",
+      "action_type": "read",
+      "chain_callable": true,
+      "effects": [],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "query": {
+            "description": "The topic, question, or user intent to find relevant context for.",
+            "title": "Query",
+            "type": "string"
+          },
+          "limit": {
+            "default": 5,
+            "description": "Max snippets to return across user and repo memory (default 5).",
+            "maximum": 20,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "include_user_facts": {
+            "default": true,
+            "description": "Include durable user facts and directives in search.",
+            "title": "Include User Facts",
+            "type": "boolean"
+          },
+          "include_repo_memory": {
+            "default": true,
+            "description": "Include repository notes and code index in search.",
+            "title": "Include Repo Memory",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "RecallContextParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "$defs": {
+          "ContextSnippet": {
+            "description": "One piece of context retrieved by recall_context.",
+            "properties": {
+              "source_type": {
+                "description": "user_fact | repo_note | repo_index",
+                "title": "Source Type",
+                "type": "string"
+              },
+              "source_id": {
+                "description": "fact_id or repo_key",
+                "title": "Source Id",
+                "type": "string"
+              },
+              "category": {
+                "default": "general",
+                "title": "Category",
+                "type": "string"
+              },
+              "content": {
+                "description": "The factual text or note",
+                "title": "Content",
+                "type": "string"
+              },
+              "score": {
+                "description": "Relevance score matching the query",
+                "title": "Score",
+                "type": "number"
+              },
+              "citation": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Source file or origin reference",
+                "title": "Citation"
+              }
+            },
+            "required": [
+              "source_type",
+              "source_id",
+              "content",
+              "score"
+            ],
+            "title": "ContextSnippet",
+            "type": "object"
+          }
+        },
+        "description": "Result of recall_context: lean, high-relevance facts matching a prompt/intent.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Subtitle"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Query"
+          },
+          "snippets": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/$defs/ContextSnippet"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Snippets"
+          },
+          "total_recalled": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total Recalled"
+          },
+          "user_facts_searched": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "User Facts Searched"
+          },
+          "repo_notes_searched": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Repo Notes Searched"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "ContextRecallRecord",
+        "type": "object",
+        "x-sdl": "entity"
+      },
+      "event": "",
       "background": false,
       "long_running": false,
       "scopes": [],

@@ -32,6 +32,7 @@ import logging
 
 from imperal_sdk import ui
 
+import app
 from app import _user_id, ext, load_indexes, load_memories, pick, repo_name
 from panels_cards import _index_card, _notes_card
 from panels_common import _back, _empty, _err, _nav
@@ -40,6 +41,14 @@ from panels_modals import erase_repo_modal, forget_note_modal, token_matches
 from panels_overview import overview_body
 from panels_storage import storage_body
 from panels_viz import index_charts, index_graph
+from panels_user_mem import (
+    user_memory_card,
+    add_user_fact_modal,
+    delete_user_fact_modal,
+    fact_token,
+)
+from storage_user_mem import load_user_memory
+from app import get_redis
 
 log = logging.getLogger("memory-index")
 
@@ -76,6 +85,33 @@ async def memory_panel(ctx, **kwargs):
             return body
         return ui.Stack(direction="v", gap=2, children=[
             _back("Back to all repos", _nav()), body])
+
+    # ── User & Workspace Memory ─────────────────────────────────────────────
+    if section == "user_memory":
+        try:
+            r = await app.get_redis()
+            try:
+                user_mem = await load_user_memory(r, uid)
+            finally:
+                await r.aclose()
+        except Exception as e:
+            log.error("user memory panel load error: %s", e)
+            return _err("Could not load your user memory — try again shortly.")
+
+        facts = user_mem.get("facts", [])
+        cat_filter = str(kwargs.get("cat") or "").strip()
+        card = user_memory_card(facts, selected_cat=cat_filter)
+        views = [_back("Back to all repos", _nav()), card]
+
+        # Modal overlay for deleting a fact
+        del_fact_id = str(kwargs.get("delete_fact") or "").strip()
+        del_tok = str(kwargs.get("token") or "").strip()
+        if del_fact_id:
+            del_fact = next((f for f in facts if f.get("fact_id") == del_fact_id), None)
+            if del_fact and (not del_tok or fact_token(del_fact.get("fact", "")) == del_tok):
+                views.append(delete_user_fact_modal(del_fact_id, del_fact.get("fact", ""), del_tok))
+
+        return ui.Stack(direction="v", gap=2, children=views)
 
     # ── The overview (root of the back chain) ───────────────────────────────
     if not want:
