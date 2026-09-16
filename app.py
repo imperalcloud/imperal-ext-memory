@@ -36,6 +36,8 @@ from imperal_sdk.chat import ChatExtension, ActionResult  # noqa: F401 (re-expor
 log = logging.getLogger("memory-index")
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+VAULT_BASE_URL = os.getenv("IMPERAL_VAULT_URL", "http://10.199.6.160:8000")
+VAULT_TIMEOUT = float(os.getenv("IMPERAL_VAULT_TIMEOUT", "2.0"))
 
 # ── Kernel storage contract (mirrored, NOT guessed) ───────────────────
 # Source of truth: imperal_kernel/core/repo_memory.py + core/repo_index_map.py
@@ -217,15 +219,33 @@ def known_repos(items: list[dict]) -> str:
 
 
 async def save_entries(uid: str, repo_key: str, entries: list) -> None:
-    """Persist note entries under the kernel's own shape, TTL and LRU cap."""
+    """Persist note entries into Tenant Vault as primary storage, with short Redis live cache."""
     if len(entries) > MAX_ENTRIES:
         entries = entries[-MAX_ENTRIES:]
-    payload = json.dumps({"user_id": uid, "repo_key": repo_key, "entries": entries})
-    r = await get_redis()
+    
+    # VAULT-PRIMARY-WRITE (ICNLI Hosting Principle, 2026-09-17)
     try:
-        await r.set(f"{MEMORY_PREFIX}{uid}:{repo_key}", payload, ex=REPO_MEM_TTL)
-    finally:
-        await r.aclose()
+        import httpx
+        async with httpx.AsyncClient(timeout=VAULT_TIMEOUT) as client:
+            resp = await client.post(
+                f"{VAULT_BASE_URL}/v1/repo/memory",
+                json={"user_id": uid, "repo_key": repo_key, "entries": entries},
+            )
+            if resp.status_code != 200:
+                log.debug("save_entries vault response: %s", resp.status_code)
+    except Exception as e:
+        log.warning("save_entries vault write failed (fail-soft): %s", e)
+
+    # Ephemeral Redis cache update
+    try:
+        payload = json.dumps({"user_id": uid, "repo_key": repo_key, "entries": entries})
+        r = await get_redis()
+        try:
+            await r.set(f"{MEMORY_PREFIX}{uid}:{repo_key}", payload, ex=REPO_MEM_TTL)
+        finally:
+            await r.aclose()
+    except Exception as e:
+        log.warning("save_entries redis cache update failed (fail-soft): %s", e)
 
 
 async def purge_repo(uid: str, repo_key: str) -> dict:

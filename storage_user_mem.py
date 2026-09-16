@@ -37,26 +37,59 @@ def sanitize_fact(text: str) -> str:
 
 
 async def load_user_memory(r: aioredis.Redis, uid: str) -> dict:
-    """Load the user memory store for uid. Fail-soft: returns empty dict with empty facts list."""
+    """Load user memory with Tenant Vault as primary source and Redis fallback."""
+    # VAULT-PRIMARY-READ (ICNLI Hosting Principle, 2026-09-17)
+    try:
+        import httpx
+        from app import VAULT_BASE_URL, VAULT_TIMEOUT
+        async with httpx.AsyncClient(timeout=VAULT_TIMEOUT) as client:
+            resp = await client.get(f"{VAULT_BASE_URL}/v1/memory/facts", params={"user_id": uid})
+            if resp.status_code == 200:
+                vault_facts = resp.json().get("facts", [])
+                if vault_facts:
+                    return {"user_id": uid, "facts": vault_facts}
+    except Exception as e:
+        log.debug("load_user_memory vault read failed (fail-soft): %s", e)
+
     key = f"{USER_MEMORY_PREFIX}{uid}"
     try:
-        raw = await r.get(key)
-        if raw:
-            data = json.loads(raw)
-            if isinstance(data, dict) and isinstance(data.get("facts"), list):
-                return data
+        if r:
+            raw = await r.get(key)
+            if raw:
+                data = json.loads(raw)
+                if isinstance(data, dict) and isinstance(data.get("facts"), list):
+                    return data
     except Exception as e:
         log.warning("Failed to load user memory for %s: %s", uid, e)
     return {"user_id": uid, "facts": []}
 
 
 async def save_user_memory(r: aioredis.Redis, uid: str, facts: list[dict]) -> None:
-    """Persist user facts list under TTL and LRU cap."""
+    """Persist user facts directly to Tenant Vault as primary, updating Redis live cache."""
     if len(facts) > MAX_USER_FACTS:
         facts = facts[-MAX_USER_FACTS:]
+
+    # VAULT-PRIMARY-WRITE (ICNLI Hosting Principle, 2026-09-17)
+    try:
+        import httpx
+        from app import VAULT_BASE_URL, VAULT_TIMEOUT
+        async with httpx.AsyncClient(timeout=VAULT_TIMEOUT) as client:
+            resp = await client.post(
+                f"{VAULT_BASE_URL}/v1/memory/facts",
+                json={"user_id": uid, "facts": facts},
+            )
+            if resp.status_code != 200:
+                log.debug("save_user_memory vault status: %s", resp.status_code)
+    except Exception as e:
+        log.warning("save_user_memory vault write failed (fail-soft): %s", e)
+
     key = f"{USER_MEMORY_PREFIX}{uid}"
-    payload = json.dumps({"user_id": uid, "facts": facts, "updated_at": int(time.time())})
-    await r.set(key, payload, ex=USER_MEM_TTL)
+    try:
+        if r:
+            payload = json.dumps({"user_id": uid, "facts": facts, "updated_at": int(time.time())})
+            await r.set(key, payload, ex=USER_MEM_TTL)
+    except Exception as e:
+        log.warning("save_user_memory redis cache failed (fail-soft): %s", e)
 
 
 _STOPWORDS = {
