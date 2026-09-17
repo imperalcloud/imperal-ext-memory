@@ -2,9 +2,10 @@
 
 Renders:
   - User directives, preferences, workspace conventions, infra facts
+  - Lifecycle state: Active / Resolved (with Proof-of-Done artifacts)
   - In-place collapsible addition & editing (no disruptive reloads)
   - Confirmation modal for fact deletion (with token binding)
-  - Category filters and contextual search simulation
+  - Category and Lifecycle filters
 """
 from __future__ import annotations
 
@@ -24,8 +25,8 @@ def fact_token(text: str) -> str:
     return hashlib.sha1(str(text or "").encode("utf-8")).hexdigest()[:8]
 
 
-def user_memory_card(facts: list[dict], selected_cat: str = "") -> ui.UINode:
-    """Card displaying durable user directives and workspace facts with inline controls."""
+def user_memory_card(facts: list[dict], selected_cat: str = "", selected_lifecycle: str = "active") -> ui.UINode:
+    """Card displaying durable user directives and workspace facts with lifecycle controls."""
     cats = ["all", "directive", "preference", "infra", "convention", "identity"]
 
     filter_buttons = []
@@ -37,9 +38,30 @@ def user_memory_card(facts: list[dict], selected_cat: str = "") -> ui.UINode:
                 label=c.capitalize(),
                 variant="primary" if is_active else "ghost",
                 size="sm",
-                on_click=_nav(section="user_memory", cat=val),
+                on_click=_nav(section="user_memory", cat=val, lifecycle=selected_lifecycle),
             )
         )
+
+    lifecycle_buttons = [
+        ui.Button(
+            label="Active Rules",
+            variant="primary" if selected_lifecycle == "active" else "ghost",
+            size="sm",
+            on_click=_nav(section="user_memory", cat=selected_cat, lifecycle="active"),
+        ),
+        ui.Button(
+            label="Resolved / Done",
+            variant="primary" if selected_lifecycle == "resolved" else "ghost",
+            size="sm",
+            on_click=_nav(section="user_memory", cat=selected_cat, lifecycle="resolved"),
+        ),
+        ui.Button(
+            label="All",
+            variant="primary" if selected_lifecycle == "all" else "ghost",
+            size="sm",
+            on_click=_nav(section="user_memory", cat=selected_cat, lifecycle="all"),
+        ),
+    ]
 
     header_row = ui.Stack(
         direction="h",
@@ -50,16 +72,26 @@ def user_memory_card(facts: list[dict], selected_cat: str = "") -> ui.UINode:
         ],
     )
 
+    lifecycle_row = ui.Stack(
+        direction="h",
+        gap=1,
+        children=[
+            ui.Text(content="Status:"),
+            *lifecycle_buttons,
+        ],
+    )
+
     children: list[ui.UINode] = [
         ui.Alert(
             type="info",
             message=(
                 f"Webbee remembers up to {MAX_USER_FACTS} durable user facts, directives, "
-                f"and infrastructure conventions across all surfaces (terminal, panel, Telegram). "
-                f"Facts are injected contextually to keep prompts lean."
+                f"and infrastructure conventions across all surfaces. "
+                f"Task-scoped directives are automatically retired upon physical verification."
             ),
         ),
         header_row,
+        lifecycle_row,
         ui.Section(
             title="+ Teach Webbee a new user fact / directive",
             collapsible=True,
@@ -86,14 +118,16 @@ def user_memory_card(facts: list[dict], selected_cat: str = "") -> ui.UINode:
 
     visible = facts
     if selected_cat:
-        visible = [f for f in facts if str(f.get("category", "")).lower() == selected_cat.lower()]
+        visible = [f for f in visible if str(f.get("category", "")).lower() == selected_cat.lower()]
+
+    if selected_lifecycle != "all":
+        visible = [f for f in visible if str(f.get("lifecycle", "active")).lower() == selected_lifecycle.lower()]
 
     if not visible:
         children.append(
             ui.Empty(
                 message=(
-                    f"No user facts stored under '{selected_cat}'." if selected_cat
-                    else "No user facts or directives stored yet. Add rules, preferences or infra facts above!"
+                    f"No facts found under '{selected_cat or 'all'}' with status '{selected_lifecycle}'."
                 ),
                 icon="BrainCircuit",
             )
@@ -103,16 +137,25 @@ def user_memory_card(facts: list[dict], selected_cat: str = "") -> ui.UINode:
             fid = f.get("fact_id", f"fact_{idx}")
             cat = str(f.get("category", "preference")).upper()
             txt = str(f.get("fact", ""))
+            lc = str(f.get("lifecycle", "active")).upper()
+            scope = str(f.get("scope", "global")).upper()
             tags = f.get("tags") or []
             tags_str = ", ".join(f"#{t}" for t in tags) if tags else ""
-            subtitle = f"[{cat}] {tags_str}".strip()
+            subtitle = f"[{cat}] [{lc} · {scope}] {tags_str}".strip()
             tok = fact_token(txt)
+
+            pod_proof = f.get("resolution_proof")
+            pod_info = []
+            if pod_proof and isinstance(pod_proof, dict):
+                art = pod_proof.get("artifact", "")
+                pod_info.append(ui.Text(content=f"✓ Resolved: {art}"))
 
             children.append(
                 ui.Section(
                     title=f"#{idx} · {subtitle}",
                     children=[
                         ui.Text(content=txt),
+                        *pod_info,
                         ui.Section(
                             title="✎ Edit fact",
                             collapsible=True,

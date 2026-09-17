@@ -100,7 +100,8 @@ async def memory_panel(ctx, **kwargs):
 
         facts = user_mem.get("facts", [])
         cat_filter = str(kwargs.get("cat") or "").strip()
-        card = user_memory_card(facts, selected_cat=cat_filter)
+        lifecycle_filter = str(kwargs.get("lifecycle") or "active").strip()
+        card = user_memory_card(facts, selected_cat=cat_filter, selected_lifecycle=lifecycle_filter)
         views = [_back("Back to all repos", _nav()), card]
 
         # Modal overlay for deleting a fact
