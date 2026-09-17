@@ -17,6 +17,12 @@ class UserFactRecord(sdl.Entity):
     updated_at: Optional[Any] = None
     source: Optional[str] = None
 
+    # Lifecycle & Autonomous Proof-of-Done (ICNLI Canon 2026-09-17)
+    lifecycle: Optional[str] = Field(default="active", description="active | resolved | deprecated")
+    scope: Optional[str] = Field(default="global", description="global | task | surface")
+    task_id: Optional[str] = Field(default=None, description="Optional associated task or marathon ID")
+    resolution_proof: Optional[dict[str, Any]] = Field(default=None, description="Physical artifact proof of task completion")
+
     @model_validator(mode="before")
     @classmethod
     def _c(cls, d):
@@ -26,7 +32,11 @@ class UserFactRecord(sdl.Entity):
             d.setdefault("fact_id", fid)
             txt = str(d.get("fact") or "").strip()
             d.setdefault("title", (txt[:80] + "…") if len(txt) > 80 else (txt or "fact"))
-            d.setdefault("kind", f"user_fact:{d.get('category', 'general')}")
+            cat = d.get("category", "general")
+            lc = d.get("lifecycle", "active")
+            d.setdefault("kind", f"user_fact:{cat}:{lc}")
+            d.setdefault("lifecycle", "active")
+            d.setdefault("scope", "global")
         return d
 
 
@@ -41,7 +51,9 @@ class UserFactOpRecord(sdl.Entity):
     action: Optional[str] = None
     category: Optional[str] = None
     fact: Optional[str] = None
+    lifecycle: Optional[str] = None
     total_facts: Optional[int] = None
+    proof_of_done: Optional[dict[str, Any]] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -63,6 +75,8 @@ class ContextSnippet(BaseModel):
     content: str = Field(description="The factual text or note")
     score: float = Field(description="Relevance score matching the query")
     citation: Optional[str] = Field(default=None, description="Source file or origin reference")
+    lifecycle: Optional[str] = Field(default="active", description="active | resolved | deprecated")
+    scope: Optional[str] = Field(default="global", description="global | task | surface")
 
 
 class ContextRecallRecord(sdl.Entity):
@@ -73,6 +87,7 @@ class ContextRecallRecord(sdl.Entity):
     total_recalled: Optional[int] = None
     user_facts_searched: Optional[int] = None
     repo_notes_searched: Optional[int] = None
+    noise_filtered: Optional[int] = Field(default=0, description="Count of low-relevance or dead-context items pruned")
 
     @model_validator(mode="before")
     @classmethod
@@ -83,4 +98,5 @@ class ContextRecallRecord(sdl.Entity):
             d.setdefault("id", f"recall:{hash(q)}")
             d.setdefault("title", f"Recalled {n} context snippets for '{q[:40]}'")
             d.setdefault("kind", "context_recall")
+            d.setdefault("noise_filtered", 0)
         return d

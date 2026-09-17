@@ -5,6 +5,7 @@ Tools:
 - add_user_fact: remember a durable fact about user or workspace
 - edit_user_fact: modify an existing user fact
 - delete_user_fact: remove a fact by ID
+- reconcile_directives: evaluate Proof-of-Done and retire resolved task directives
 """
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ from pydantic import BaseModel, Field
 import app
 from app import ActionResult, _user_id, chat, safe_err
 from models_user_mem import UserFactListResponse, UserFactOpRecord, UserFactRecord
+from proof_of_done import detect_lifecycle_scope, evaluate_task_resolution
 from storage_user_mem import (
     MAX_FACT_CHARS,
     MAX_USER_FACTS,
@@ -30,6 +32,10 @@ class ListUserFactsParams(BaseModel):
         default="",
         description="Optional filter by category: directive, preference, infra, convention, identity. Empty = all.",
     )
+    lifecycle: str = Field(
+        default="",
+        description="Filter by lifecycle: active | resolved | deprecated. Empty = all.",
+    )
 
 
 class AddUserFactParams(BaseModel):
@@ -41,6 +47,10 @@ class AddUserFactParams(BaseModel):
     tags: list[str] = Field(
         default_factory=list,
         description="Optional keywords/tags for contextual search, e.g. ['docker', 'deploy']",
+    )
+    scope: str = Field(
+        default="",
+        description="Optional scope: global | task | surface (auto-detected if empty)",
     )
 
 
@@ -54,6 +64,10 @@ class EditUserFactParams(BaseModel):
     tags: list[str] = Field(
         default_factory=list,
         description="Updated list of tags (empty keeps existing)",
+    )
+    lifecycle: str = Field(
+        default="",
+        description="Updated lifecycle: active | resolved | deprecated (empty keeps existing)",
     )
 
 
@@ -81,8 +95,12 @@ async def fn_list_user_facts(ctx, params: ListUserFactsParams) -> ActionResult:
 
     facts = mem.get("facts", [])
     cat = (params.category or "").strip().lower()
+    lc = (params.lifecycle or "").strip().lower()
+
     if cat:
         facts = [f for f in facts if str(f.get("category", "")).lower() == cat]
+    if lc:
+        facts = [f for f in facts if str(f.get("lifecycle", "active")).lower() == lc]
 
     records = [UserFactRecord.model_validate(f) for f in facts]
     return ActionResult.success(
@@ -118,14 +136,20 @@ async def fn_add_user_fact(ctx, params: AddUserFactParams) -> ActionResult:
 
         now = int(time.time())
         fact_id = f"fact_{uuid.uuid4().hex[:10]}"
+        cat = (params.category or "preference").strip().lower()
+        auto_lc, auto_scope = detect_lifecycle_scope(clean_text, cat)
+        chosen_scope = (params.scope or auto_scope).strip().lower()
+
         new_entry = {
             "fact_id": fact_id,
-            "category": (params.category or "preference").strip().lower(),
+            "category": cat,
             "fact": clean_text,
             "tags": [t.strip().lower() for t in params.tags if t.strip()],
             "created_at": now,
             "updated_at": now,
             "source": "chat",
+            "lifecycle": auto_lc,
+            "scope": chosen_scope,
         }
         facts.append(new_entry)
         await save_user_memory(r, uid, facts)
@@ -138,6 +162,7 @@ async def fn_add_user_fact(ctx, params: AddUserFactParams) -> ActionResult:
             "action": "added",
             "category": new_entry["category"],
             "fact": clean_text,
+            "lifecycle": new_entry["lifecycle"],
             "total_facts": len(facts),
         }),
         summary=f"Remembered fact under category '{new_entry['category']}'.",
@@ -184,6 +209,8 @@ async def fn_edit_user_fact(ctx, params: EditUserFactParams) -> ActionResult:
             matched["category"] = params.category.strip().lower()
         if params.tags:
             matched["tags"] = [t.strip().lower() for t in params.tags if t.strip()]
+        if params.lifecycle:
+            matched["lifecycle"] = params.lifecycle.strip().lower()
         matched["updated_at"] = int(time.time())
 
         await save_user_memory(r, uid, facts)
@@ -196,6 +223,7 @@ async def fn_edit_user_fact(ctx, params: EditUserFactParams) -> ActionResult:
             "action": "updated",
             "category": matched.get("category"),
             "fact": clean_text,
+            "lifecycle": matched.get("lifecycle", "active"),
             "total_facts": len(facts),
         }),
         summary=f"Updated fact '{target_id}'.",

@@ -1,7 +1,10 @@
 """Memory & Index · Contextual Recall tool handler.
 
 Implements `recall_context`: semantic/keyword query across both User Facts
-and Repository Notes/Index to return the most relevant snippets for a prompt.
+and Repository Notes/Index with smart gating:
+1. Lifecycle filtering: excludes resolved/deprecated task rules from active context.
+2. Invariant boosting: always surfaces active standing directives and negative constraints.
+3. Strict noise-floor: prunes low-relevance semantic drift (< 0.35) to protect LLM context.
 """
 from __future__ import annotations
 
@@ -18,9 +21,13 @@ from app import (
     safe_err,
 )
 from models_user_mem import ContextRecallRecord, ContextSnippet
+from proof_of_done import evaluate_task_resolution
 from storage_user_mem import load_user_memory, score_text_relevance, tokenize
 
 log = logging.getLogger("memory-index.recall")
+
+# Smart noise threshold: anything below 0.35 is semantic drift/accidental overlap
+MIN_RELEVANCE_FLOOR = 0.35
 
 
 class RecallContextParams(BaseModel):
@@ -40,6 +47,10 @@ class RecallContextParams(BaseModel):
     include_repo_memory: bool = Field(
         default=True,
         description="Include repository notes and code index in search.",
+    )
+    include_resolved: bool = Field(
+        default=False,
+        description="Include resolved task-scoped directives (default False, keeps active context clean).",
     )
 
 
@@ -66,6 +77,7 @@ async def fn_recall_context(ctx, params: RecallContextParams) -> ActionResult:
     scored_snippets: list[dict] = []
     user_facts_searched = 0
     repo_notes_searched = 0
+    noise_filtered = 0
 
     # 1. Search User Memory facts
     if params.include_user_facts:
@@ -76,18 +88,38 @@ async def fn_recall_context(ctx, params: RecallContextParams) -> ActionResult:
                 facts = mem.get("facts", [])
                 user_facts_searched = len(facts)
                 for f in facts:
+                    lifecycle = f.get("lifecycle", "active")
+                    # If not explicitly marked, evaluate auto-resolution
+                    if lifecycle == "active":
+                        is_res, _ = evaluate_task_resolution(f)
+                        if is_res:
+                            lifecycle = "resolved"
+
+                    if not params.include_resolved and lifecycle in ("resolved", "deprecated"):
+                        continue
+
                     text = f.get("fact", "")
                     tags = f.get("tags", [])
+                    category = f.get("category", "preference")
                     score = score_text_relevance(query_tokens, text, tags)
-                    if score > 0.0:
+
+                    # Invariant priority: standing directives get boosted relevance
+                    if category == "directive" and f.get("scope") == "global":
+                        score = max(score, 0.85)
+
+                    if score >= MIN_RELEVANCE_FLOOR:
                         scored_snippets.append({
                             "source_type": "user_fact",
                             "source_id": f.get("fact_id", "fact"),
-                            "category": f.get("category", "preference"),
+                            "category": category,
                             "content": text,
                             "score": score,
-                            "citation": f"category:{f.get('category', 'preference')}",
+                            "citation": f"category:{category}",
+                            "lifecycle": lifecycle,
+                            "scope": f.get("scope", "global"),
                         })
+                    else:
+                        noise_filtered += 1
             finally:
                 await r.aclose()
         except Exception as e:
@@ -113,7 +145,8 @@ async def fn_recall_context(ctx, params: RecallContextParams) -> ActionResult:
                     note_text = e.get("note", "")
                     cites = e.get("citations") or []
                     score = score_text_relevance(query_tokens, note_text, cites)
-                    if score > 0.0:
+
+                    if score >= MIN_RELEVANCE_FLOOR:
                         scored_snippets.append({
                             "source_type": "repo_note",
                             "source_id": repo_key,
@@ -121,7 +154,11 @@ async def fn_recall_context(ctx, params: RecallContextParams) -> ActionResult:
                             "content": note_text,
                             "score": score,
                             "citation": ", ".join(cites) if cites else (repo_root or repo_key),
+                            "lifecycle": "active",
+                            "scope": "global",
                         })
+                    else:
+                        noise_filtered += 1
         except Exception as e:
             log.warning("Repo memory recall failed (fail-soft): %s", safe_err(e))
 
@@ -138,6 +175,7 @@ async def fn_recall_context(ctx, params: RecallContextParams) -> ActionResult:
             "total_recalled": len(snippet_records),
             "user_facts_searched": user_facts_searched,
             "repo_notes_searched": repo_notes_searched,
+            "noise_filtered": noise_filtered,
         }),
-        summary=f"Recalled {len(snippet_records)} relevant context snippet(s).",
+        summary=f"Recalled {len(snippet_records)} relevant context snippet(s) (pruned {noise_filtered} noisy items).",
     )
