@@ -1,10 +1,10 @@
 {
   "manifest_schema_version": 3,
-  "sdk_version": "5.13.1",
+  "sdk_version": "6.0.1",
   "app_id": "memory-index",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "Memory & Index",
-  "description": "See and edit what Webbee remembers about your code \u2014 the code index (files, languages, symbols, commit) and the durable notes distilled while coding, with a plain explanation of where each piece is stored and when it updates.",
+  "description": "See and edit what Webbee remembers about your code — the code index (files, languages, symbols, commit) and the durable notes distilled while coding, with a plain explanation of where each piece is stored and when it updates.",
   "icon": "icon.svg",
   "actions_explicit": true,
   "system": true,
@@ -15,7 +15,7 @@
   "tools": [
     {
       "name": "list_repos",
-      "description": "List every repository Webbee holds memory for \u2014 code index size, languages, how many durable notes, and how fresh each one is. Works on every surface (panel, Telegram, terminal).",
+      "description": "List every repository Webbee holds memory for — code index size, languages, how many durable notes, and how fresh each one is. Works on every surface (panel, Telegram, terminal).",
       "action_type": "read",
       "chain_callable": true,
       "effects": [],
@@ -329,7 +329,7 @@
         "properties": {
           "repo": {
             "default": "",
-            "description": "Which repo \u2014 its repo_key, or any fragment of its path/name. Empty = the most recently touched one.",
+            "description": "Which repo — its repo_key, or any fragment of its path/name. Empty = the most recently touched one.",
             "title": "Repo",
             "type": "string"
           }
@@ -681,7 +681,7 @@
     },
     {
       "name": "list_notes",
-      "description": "Show the durable notes Webbee has learned about a repository \u2014 the cloud-side WEBBEE.md: conventions, gotchas, where things live. Each note carries a position number for editing and when it was written.",
+      "description": "Show the durable notes Webbee has learned about a repository — the cloud-side WEBBEE.md: conventions, gotchas, where things live. Each note carries a position number for editing and when it was written.",
       "action_type": "read",
       "chain_callable": true,
       "effects": [],
@@ -690,7 +690,7 @@
         "properties": {
           "repo": {
             "default": "",
-            "description": "Which repo \u2014 its repo_key, or any fragment of its path/name. Empty = the most recently touched one.",
+            "description": "Which repo — its repo_key, or any fragment of its path/name. Empty = the most recently touched one.",
             "title": "Repo",
             "type": "string"
           }
@@ -701,7 +701,7 @@
       "return_schema": {
         "$defs": {
           "NoteRecord": {
-            "description": "One durable note about a repo \u2014 editable by its owner.",
+            "description": "One durable note about a repo — editable by its owner.",
             "properties": {
               "id": {
                 "anyOf": [
@@ -939,7 +939,7 @@
     },
     {
       "name": "explain_memory",
-      "description": "Explain exactly where Webbee's memory about your code is stored, what each store holds, who writes it and when it updates \u2014 with live counts from your own account.",
+      "description": "Explain exactly where Webbee's memory about your code is stored, what each store holds, who writes it and when it updates — with live counts from your own account.",
       "action_type": "read",
       "chain_callable": true,
       "effects": [],
@@ -951,7 +951,7 @@
         "type": "object"
       },
       "return_schema": {
-        "description": "Where each piece of repo memory lives and when it updates \u2014 live numbers.",
+        "description": "Where each piece of repo memory lives and when it updates — live numbers.",
         "properties": {
           "id": {
             "anyOf": [
@@ -1148,7 +1148,7 @@
     },
     {
       "name": "add_note",
-      "description": "Teach Webbee a durable fact about a repository \u2014 it is remembered across machines and surfaces, and used on later coding turns.",
+      "description": "Teach Webbee a durable fact about a repository — it is remembered across machines and surfaces, and used on later coding turns.",
       "action_type": "write",
       "chain_callable": true,
       "effects": [
@@ -1164,7 +1164,7 @@
           },
           "repo": {
             "default": "",
-            "description": "Which repo \u2014 repo_key or path fragment. Empty = most recent.",
+            "description": "Which repo — repo_key or path fragment. Empty = most recent.",
             "title": "Repo",
             "type": "string"
           },
@@ -1184,7 +1184,7 @@
         "type": "object"
       },
       "return_schema": {
-        "description": "Outcome of ONE note write (add / edit / delete).\n\nDeliberately NOT ``NoteRecord``: a write does not return the stored entity,\nit returns what CHANGED \u2014 the resulting text plus the displaced/removed\none and the surviving count. Typing it truthfully is what lets the narrator\nand the audit ledger describe the mutation without re-reading the store\n(federal V24).",
+        "description": "Outcome of ONE note write (add / edit / delete).\n\nDeliberately NOT ``NoteRecord``: a write does not return the stored entity,\nit returns what CHANGED — the resulting text plus the displaced/removed\none and the surviving count. Typing it truthfully is what lets the narrator\nand the audit ledger describe the mutation without re-reading the store\n(federal V24).",
         "properties": {
           "id": {
             "anyOf": [
@@ -1355,7 +1355,7 @@
     },
     {
       "name": "edit_note",
-      "description": "Correct one durable note by its position number (see list_notes) \u2014 the text is replaced and marked as edited by you.",
+      "description": "Correct one durable note by its position number (see list_notes) — the text is replaced and marked as edited by you.",
       "action_type": "write",
       "chain_callable": true,
       "effects": [
@@ -1365,7 +1365,7 @@
       "params_schema": {
         "properties": {
           "position": {
-            "description": "Which note to change \u2014 its position number from list_notes (1-based)",
+            "description": "Which note to change — its position number from list_notes (1-based)",
             "title": "Position",
             "type": "integer"
           },
@@ -1376,7 +1376,7 @@
           },
           "repo": {
             "default": "",
-            "description": "Which repo \u2014 repo_key or path fragment. Empty = most recent.",
+            "description": "Which repo — repo_key or path fragment. Empty = most recent.",
             "title": "Repo",
             "type": "string"
           }
@@ -1389,7 +1389,7 @@
         "type": "object"
       },
       "return_schema": {
-        "description": "Outcome of ONE note write (add / edit / delete).\n\nDeliberately NOT ``NoteRecord``: a write does not return the stored entity,\nit returns what CHANGED \u2014 the resulting text plus the displaced/removed\none and the surviving count. Typing it truthfully is what lets the narrator\nand the audit ledger describe the mutation without re-reading the store\n(federal V24).",
+        "description": "Outcome of ONE note write (add / edit / delete).\n\nDeliberately NOT ``NoteRecord``: a write does not return the stored entity,\nit returns what CHANGED — the resulting text plus the displaced/removed\none and the surviving count. Typing it truthfully is what lets the narrator\nand the audit ledger describe the mutation without re-reading the store\n(federal V24).",
         "properties": {
           "id": {
             "anyOf": [
@@ -1570,13 +1570,13 @@
       "params_schema": {
         "properties": {
           "position": {
-            "description": "Which note to forget \u2014 its position number from list_notes (1-based)",
+            "description": "Which note to forget — its position number from list_notes (1-based)",
             "title": "Position",
             "type": "integer"
           },
           "repo": {
             "default": "",
-            "description": "Which repo \u2014 repo_key or path fragment. Empty = most recent.",
+            "description": "Which repo — repo_key or path fragment. Empty = most recent.",
             "title": "Repo",
             "type": "string"
           }
@@ -1588,7 +1588,7 @@
         "type": "object"
       },
       "return_schema": {
-        "description": "Outcome of ONE note write (add / edit / delete).\n\nDeliberately NOT ``NoteRecord``: a write does not return the stored entity,\nit returns what CHANGED \u2014 the resulting text plus the displaced/removed\none and the surviving count. Typing it truthfully is what lets the narrator\nand the audit ledger describe the mutation without re-reading the store\n(federal V24).",
+        "description": "Outcome of ONE note write (add / edit / delete).\n\nDeliberately NOT ``NoteRecord``: a write does not return the stored entity,\nit returns what CHANGED — the resulting text plus the displaced/removed\none and the surviving count. Typing it truthfully is what lets the narrator\nand the audit ledger describe the mutation without re-reading the store\n(federal V24).",
         "properties": {
           "id": {
             "anyOf": [
@@ -1759,7 +1759,7 @@
     },
     {
       "name": "delete_repo",
-      "description": "Permanently erase EVERYTHING Webbee remembers about one repository \u2014 its code index AND all its durable notes \u2014 from storage, and verify afterwards that no key survived. This cannot be undone: the notes are gone for good, while the code index only comes back if that repo is opened in the Webbee terminal agent again.",
+      "description": "Permanently erase EVERYTHING Webbee remembers about one repository — its code index AND all its durable notes — from storage, and verify afterwards that no key survived. This cannot be undone: the notes are gone for good, while the code index only comes back if that repo is opened in the Webbee terminal agent again.",
       "action_type": "destructive",
       "chain_callable": true,
       "effects": [
@@ -1770,7 +1770,7 @@
       "params_schema": {
         "properties": {
           "repo": {
-            "description": "Which repo to erase \u2014 its repo_key, or a fragment of its path/name. Required: erasing whatever happens to be most recent would be a coin flip with the user's memory.",
+            "description": "Which repo to erase — its repo_key, or a fragment of its path/name. Required: erasing whatever happens to be most recent would be a coin flip with the user's memory.",
             "title": "Repo",
             "type": "string"
           }
@@ -1782,7 +1782,7 @@
         "type": "object"
       },
       "return_schema": {
-        "description": "Outcome of erasing ONE repo's memory \u2014 a verified fact, not an intent.\n\n``verified`` is the result of a fresh keyspace scan performed AFTER the\ndelete, and ``leftover_keys`` names anything that survived it. They are\nmodelled as first-class fields precisely so the answer cannot claim a\nclean wipe while something remains: if the re-scan finds a key, the\nrecord says so and the narrator has to report it.",
+        "description": "Outcome of erasing ONE repo's memory — a verified fact, not an intent.\n\n``verified`` is the result of a fresh keyspace scan performed AFTER the\ndelete, and ``leftover_keys`` names anything that survived it. They are\nmodelled as first-class fields precisely so the answer cannot claim a\nclean wipe while something remains: if the re-scan finds a key, the\nrecord says so and the narrator has to report it.",
         "properties": {
           "id": {
             "anyOf": [

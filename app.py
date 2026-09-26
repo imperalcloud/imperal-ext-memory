@@ -49,7 +49,7 @@ REPO_MEM_TTL = 90 * 24 * 60 * 60        # core.repo_memory._REPO_MEM_TTL
 SCAN_CAP = 200                          # never walk an unbounded keyspace
 
 ext = Extension(
-    "memory-index", version="1.0.0",
+    "memory-index", version="1.0.1",
     # Federal-rigor scope surface (I-SCOPES-DECLARED-NOT-WILDCARD): this app
     # reads the caller's own code index and edits the caller's own durable
     # notes — declare exactly that, never a wildcard, for a system app that
