@@ -91,7 +91,7 @@ async def memory_panel(ctx, **kwargs):
         try:
             r = await app.get_redis()
             try:
-                user_mem = await load_user_memory(r, uid)
+                user_mem = await load_user_memory(ctx, r, uid)
             finally:
                 await r.aclose()
         except Exception as e:

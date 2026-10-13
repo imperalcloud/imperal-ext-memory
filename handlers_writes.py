@@ -79,7 +79,7 @@ async def fn_add_note(ctx, params: AddNoteParams) -> ActionResult:
             "distilled_at": now,
         })
         evicted = max(0, len(entries) - MAX_ENTRIES)
-        await save_entries(uid, repo_key, entries)
+        await save_entries(ctx, uid, repo_key, entries)
     except Exception as e:
         return ActionResult.error(f"Failed to store the note: {safe_err(e)}")
 
@@ -125,7 +125,7 @@ async def fn_edit_note(ctx, params: EditNoteParams) -> ActionResult:
             "source": "user-edited",
             "edited_at": int(time.time()),
         }
-        await save_entries(uid, repo_key, entries)
+        await save_entries(ctx, uid, repo_key, entries)
     except Exception as e:
         return ActionResult.error(f"Failed to edit the note: {safe_err(e)}")
 
@@ -161,7 +161,7 @@ async def fn_delete_note(ctx, params: DeleteNoteParams) -> ActionResult:
                 f"Position {params.position} does not exist — repo {repo_key[:12]} has "
                 f"{len(entries)} note(s). Use list_notes to see the numbers.")
         removed = str(entries.pop(params.position - 1).get("note") or "")
-        await save_entries(uid, repo_key, entries)
+        await save_entries(ctx, uid, repo_key, entries)
     except Exception as e:
         return ActionResult.error(f"Failed to delete the note: {safe_err(e)}")
 

@@ -36,20 +36,16 @@ def sanitize_fact(text: str) -> str:
     return defused[:MAX_FACT_CHARS].strip()
 
 
-async def load_user_memory(r: aioredis.Redis, uid: str) -> dict:
-    """Load user memory with Tenant Vault as primary source and Redis fallback."""
-    # VAULT-PRIMARY-READ (ICNLI Hosting Principle, 2026-09-17)
+async def load_user_memory(ctx, r: aioredis.Redis, uid: str) -> dict:
+    """Load user memory from the Tenant Vault (through the gateway's
+    owner-scoped /v1/memory), with Redis as fallback."""
     try:
-        import httpx
-        from app import VAULT_BASE_URL, VAULT_TIMEOUT
-        async with httpx.AsyncClient(timeout=VAULT_TIMEOUT) as client:
-            resp = await client.get(f"{VAULT_BASE_URL}/v1/memory/facts", params={"user_id": uid})
-            if resp.status_code == 200:
-                vault_facts = resp.json().get("facts", [])
-                if vault_facts:
-                    return {"user_id": uid, "facts": vault_facts}
+        from memory_client import memory_api
+        vault_facts = (await memory_api(ctx).facts() or {}).get("facts", [])
+        if vault_facts:
+            return {"user_id": uid, "facts": vault_facts}
     except Exception as e:
-        log.debug("load_user_memory vault read failed (fail-soft): %s", e)
+        log.debug("load_user_memory memory read failed (fail-soft): %s", e)
 
     key = f"{USER_MEMORY_PREFIX}{uid}"
     try:
@@ -64,24 +60,17 @@ async def load_user_memory(r: aioredis.Redis, uid: str) -> dict:
     return {"user_id": uid, "facts": []}
 
 
-async def save_user_memory(r: aioredis.Redis, uid: str, facts: list[dict]) -> None:
-    """Persist user facts directly to Tenant Vault as primary, updating Redis live cache."""
+async def save_user_memory(ctx, r: aioredis.Redis, uid: str, facts: list[dict]) -> None:
+    """Persist user facts to the Tenant Vault (through the gateway's
+    owner-scoped /v1/memory), updating the Redis live cache."""
     if len(facts) > MAX_USER_FACTS:
         facts = facts[-MAX_USER_FACTS:]
 
-    # VAULT-PRIMARY-WRITE (ICNLI Hosting Principle, 2026-09-17)
     try:
-        import httpx
-        from app import VAULT_BASE_URL, VAULT_TIMEOUT
-        async with httpx.AsyncClient(timeout=VAULT_TIMEOUT) as client:
-            resp = await client.post(
-                f"{VAULT_BASE_URL}/v1/memory/facts",
-                json={"user_id": uid, "facts": facts},
-            )
-            if resp.status_code != 200:
-                log.debug("save_user_memory vault status: %s", resp.status_code)
+        from memory_client import memory_api
+        await memory_api(ctx).save_facts(facts)
     except Exception as e:
-        log.warning("save_user_memory vault write failed (fail-soft): %s", e)
+        log.warning("save_user_memory memory write failed (fail-soft): %s", e)
 
     key = f"{USER_MEMORY_PREFIX}{uid}"
     try:

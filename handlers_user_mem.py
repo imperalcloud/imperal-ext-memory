@@ -89,7 +89,7 @@ async def fn_list_user_facts(ctx, params: ListUserFactsParams) -> ActionResult:
 
     r = await app.get_redis()
     try:
-        mem = await load_user_memory(r, uid)
+        mem = await load_user_memory(ctx, r, uid)
     finally:
         await r.aclose()
 
@@ -129,7 +129,7 @@ async def fn_add_user_fact(ctx, params: AddUserFactParams) -> ActionResult:
 
     r = await app.get_redis()
     try:
-        mem = await load_user_memory(r, uid)
+        mem = await load_user_memory(ctx, r, uid)
         facts: list[dict] = mem.get("facts", [])
         if len(facts) >= MAX_USER_FACTS:
             facts = facts[-(MAX_USER_FACTS - 1):]
@@ -152,7 +152,7 @@ async def fn_add_user_fact(ctx, params: AddUserFactParams) -> ActionResult:
             "scope": chosen_scope,
         }
         facts.append(new_entry)
-        await save_user_memory(r, uid, facts)
+        await save_user_memory(ctx, r, uid, facts)
     finally:
         await r.aclose()
 
@@ -193,7 +193,7 @@ async def fn_edit_user_fact(ctx, params: EditUserFactParams) -> ActionResult:
 
     r = await app.get_redis()
     try:
-        mem = await load_user_memory(r, uid)
+        mem = await load_user_memory(ctx, r, uid)
         facts: list[dict] = mem.get("facts", [])
         matched = None
         for f in facts:
@@ -213,7 +213,7 @@ async def fn_edit_user_fact(ctx, params: EditUserFactParams) -> ActionResult:
             matched["lifecycle"] = params.lifecycle.strip().lower()
         matched["updated_at"] = int(time.time())
 
-        await save_user_memory(r, uid, facts)
+        await save_user_memory(ctx, r, uid, facts)
     finally:
         await r.aclose()
 
@@ -250,13 +250,13 @@ async def fn_delete_user_fact(ctx, params: DeleteUserFactParams) -> ActionResult
 
     r = await app.get_redis()
     try:
-        mem = await load_user_memory(r, uid)
+        mem = await load_user_memory(ctx, r, uid)
         facts: list[dict] = mem.get("facts", [])
         surviving = [f for f in facts if f.get("fact_id") != target_id]
         if len(surviving) == len(facts):
             return ActionResult.error(f"User fact '{target_id}' not found.")
 
-        await save_user_memory(r, uid, surviving)
+        await save_user_memory(ctx, r, uid, surviving)
     finally:
         await r.aclose()
 

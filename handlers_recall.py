@@ -84,7 +84,7 @@ async def fn_recall_context(ctx, params: RecallContextParams) -> ActionResult:
         try:
             r = await app.get_redis()
             try:
-                mem = await load_user_memory(r, uid)
+                mem = await load_user_memory(ctx, r, uid)
                 facts = mem.get("facts", [])
                 user_facts_searched = len(facts)
                 for f in facts:
