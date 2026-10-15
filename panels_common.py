@@ -12,17 +12,13 @@ import logging
 from imperal_sdk import ui
 
 from app import (
-    REPO_MEM_TTL,
     age,
-    load_indexes,
-    load_memories,
+    load_repo_memory,
     repo_name,
 )
 from app import ts as app_ts   # aliased: bare `ts` reads as a variable at call sites
 
 log = logging.getLogger("memory-index")
-
-_RETENTION_DAYS = REPO_MEM_TTL // 86400
 
 
 # Every piece of view state the memory panel reads out of kwargs. Listed once,
@@ -88,10 +84,9 @@ def _empty(title: str, message: str) -> ui.Stack:
     ])
 
 
-async def _inventory(uid: str) -> list[dict]:
+async def _inventory(ctx) -> list[dict]:
     """Merge index maps + note sets into one per-repo inventory."""
-    indexes = await load_indexes(uid)
-    memories = await load_memories(uid)
+    indexes, memories = await load_repo_memory(ctx)
     by_key: dict[str, dict] = {}
 
     for d in indexes:

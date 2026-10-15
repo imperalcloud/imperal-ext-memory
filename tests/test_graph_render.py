@@ -49,7 +49,7 @@ def _rich_index(seed_index):
 
 @pytest.mark.asyncio
 async def test_every_node_carries_a_mention_count(
-        redis_mock, make_ctx, seed_index):
+        gateway, make_ctx, seed_index):
     """EVERY node needs mention_count >= 1, or the graph renders empty.
 
     This is the bug that made the graph invisible, and nothing in the payload
@@ -76,7 +76,7 @@ async def test_every_node_carries_a_mention_count(
 
 @pytest.mark.asyncio
 async def test_node_size_stays_inside_the_renderers_mapdata_domain(
-        redis_mock, make_ctx, seed_index):
+        gateway, make_ctx, seed_index):
     """`size` is a 0..50 value, NOT a pixel diameter.
 
     The renderer's stylesheet is mapData(size, 0, 50, min_node_size,
@@ -96,7 +96,7 @@ async def test_node_size_stays_inside_the_renderers_mapdata_domain(
 
 
 @pytest.mark.asyncio
-async def test_graph_is_not_wrapped_in_a_card(redis_mock, make_ctx, seed_index):
+async def test_graph_is_not_wrapped_in_a_card(gateway, make_ctx, seed_index):
     """The graph sits in a Section, like the one graph proven to render here.
 
     A Card lays its content out through its own wrapper, and a canvas that has
@@ -140,7 +140,7 @@ _GRAPH_CONTRACT = {
 
 @pytest.mark.asyncio
 async def test_graph_passes_only_props_the_platform_defines(
-        redis_mock, make_ctx, seed_index):
+        gateway, make_ctx, seed_index):
     """No undocumented prop may reach the renderer.
 
     A previous version injected graph.props["animate"] = False by hand, copied
@@ -161,7 +161,7 @@ async def test_graph_passes_only_props_the_platform_defines(
 
 @pytest.mark.asyncio
 async def test_graph_layout_is_one_the_component_supports(
-        redis_mock, make_ctx, seed_index):
+        gateway, make_ctx, seed_index):
     """layout must be one of the five Cytoscape algorithms the SDK lists."""
     seed_index("imp_u_TEST", "abc123",
                top_symbols=["main (function) @ probe_stream_terminals.py:17"])

@@ -64,42 +64,37 @@ from handlers_recall import fn_recall_context, RecallContextParams
 from models_user_mem import ContextRecallRecord
 
 @pytest.mark.asyncio
-async def test_fn_recall_context_smart_gating(redis_mock, make_ctx):
-    import json
+async def test_fn_recall_context_smart_gating(gateway, make_ctx):
     ctx = make_ctx("imp_u_pod_user")
     uid = ctx.user.imperal_id
 
-    # Seed facts directly into fake redis store under USER_MEMORY_PREFIX
-    key = f"imperal:user_memory:{uid}"
-    redis_mock.store[key] = json.dumps({
-        "user_id": uid,
-        "facts": [
-            {
-                "fact_id": "fact-active-inv",
-                "fact": "Все по канонам делай, ничего не ломай!",
-                "category": "directive",
-                "lifecycle": "active",
-                "scope": "global",
-                "tags": ["canon", "rules"]
-            },
-            {
-                "fact_id": "fact-dead-blocker",
-                "fact": "Агент ОБЯЗАН первым же сообщением выдать честный блокер",
-                "category": "directive",
-                "lifecycle": "resolved",
-                "scope": "task",
-                "tags": ["blocker"]
-            },
-            {
-                "fact_id": "fact-irrelevant-flight",
-                "fact": "Да, посмотри пожалуйста через Google Flights билеты в Рим",
-                "category": "preference",
-                "lifecycle": "active",
-                "scope": "global",
-                "tags": ["travel", "flights"]
-            }
-        ]
-    })
+    # Seed facts directly into the fake vault's facts store
+    gateway.facts[uid] = [
+        {
+            "fact_id": "fact-active-inv",
+            "fact": "Все по канонам делай, ничего не ломай!",
+            "category": "directive",
+            "lifecycle": "active",
+            "scope": "global",
+            "tags": ["canon", "rules"]
+        },
+        {
+            "fact_id": "fact-dead-blocker",
+            "fact": "Агент ОБЯЗАН первым же сообщением выдать честный блокер",
+            "category": "directive",
+            "lifecycle": "resolved",
+            "scope": "task",
+            "tags": ["blocker"]
+        },
+        {
+            "fact_id": "fact-irrelevant-flight",
+            "fact": "Да, посмотри пожалуйста через Google Flights билеты в Рим",
+            "category": "preference",
+            "lifecycle": "active",
+            "scope": "global",
+            "tags": ["travel", "flights"]
+        }
+    ]
 
     params = RecallContextParams(
         query="как делать разработку и следовать правилам канона?",

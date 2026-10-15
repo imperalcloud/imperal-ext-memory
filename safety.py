@@ -1,7 +1,7 @@
 """Memory & Index · Write-safety pipeline — mirrors imperal_kernel/core/repo_memory.py.
 
 A note stored here is re-injected into the coding brain's prompt on later
-turns, for up to 90 days. Without these two transforms a panel edit would be
+turns, with no expiry. Without these two transforms a panel edit would be
 a stored prompt-injection vector with a long shelf life, so they are NOT
 optional and NOT cosmetic.
 

@@ -2,7 +2,7 @@
   "manifest_schema_version": 3,
   "sdk_version": "6.0.1",
   "app_id": "memory-index",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "name": "Memory & Index",
   "description": "See and edit what Webbee remembers about your code — the code index (files, languages, symbols, commit) and the durable notes distilled while coding, with a plain explanation of where each piece is stored and when it updates.",
   "icon": "icon.svg",
@@ -1106,18 +1106,6 @@
             "default": null,
             "title": "Note Char Limit"
           },
-          "retention_days": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Retention Days"
-          },
           "orphan_note_repos": {
             "anyOf": [
               {
@@ -1759,7 +1747,7 @@
     },
     {
       "name": "delete_repo",
-      "description": "Permanently erase EVERYTHING Webbee remembers about one repository — its code index AND all its durable notes — from storage, and verify afterwards that no key survived. This cannot be undone: the notes are gone for good, while the code index only comes back if that repo is opened in the Webbee terminal agent again.",
+      "description": "Permanently erase EVERYTHING Webbee remembers about one repository — its code index AND all its durable notes — from storage, and verify afterwards that nothing survived. This cannot be undone: the notes are gone for good, while the code index only comes back if that repo is opened in the Webbee terminal agent again.",
       "action_type": "destructive",
       "chain_callable": true,
       "effects": [
@@ -1782,7 +1770,7 @@
         "type": "object"
       },
       "return_schema": {
-        "description": "Outcome of erasing ONE repo's memory — a verified fact, not an intent.\n\n``verified`` is the result of a fresh keyspace scan performed AFTER the\ndelete, and ``leftover_keys`` names anything that survived it. They are\nmodelled as first-class fields precisely so the answer cannot claim a\nclean wipe while something remains: if the re-scan finds a key, the\nrecord says so and the narrator has to report it.",
+        "description": "Outcome of erasing ONE repo's memory — a verified fact, not an intent.\n\n``deleted`` is what the vault said about its own delete; ``still_listed``\nis the result of a fresh listing performed AFTER it, and ``verified`` is\nits negation. They are modelled as first-class fields precisely so the\nanswer cannot claim a clean wipe while something remains: if the\nre-listing still shows the repo, the record says so and the narrator has\nto report it.",
         "properties": {
           "id": {
             "anyOf": [
@@ -1912,30 +1900,29 @@
             "default": null,
             "title": "Notes Removed"
           },
-          "keys_deleted": {
+          "deleted": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "boolean"
               },
               {
                 "type": "null"
               }
             ],
             "default": null,
-            "title": "Keys Deleted"
+            "title": "Deleted"
           },
-          "leftover_keys": {
+          "still_listed": {
             "anyOf": [
               {
-                "items": {},
-                "type": "array"
+                "type": "boolean"
               },
               {
                 "type": "null"
               }
             ],
             "default": null,
-            "title": "Leftover Keys"
+            "title": "Still Listed"
           },
           "verified": {
             "anyOf": [
@@ -1965,6 +1952,269 @@
       "owner_chat_tool": "tool_memory_chat"
     },
     {
+      "name": "get_cross_repo_contract_graph",
+      "description": "Read the authenticated user's cross-repository HTTP endpoint and schema graph: exact routes, handlers, models/tables, Git-source provenance, freshness, and deterministic cross-repo links. Works identically from panel, Telegram, and terminal.",
+      "action_type": "read",
+      "chain_callable": true,
+      "effects": [],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "query": {
+            "default": "",
+            "description": "Optional exact substring over route, method, handler, schema name or field.",
+            "maxLength": 200,
+            "title": "Query",
+            "type": "string"
+          },
+          "repo": {
+            "default": "",
+            "description": "Optional repo key/path fragment. Empty searches all indexed repos.",
+            "maxLength": 200,
+            "title": "Repo",
+            "type": "string"
+          },
+          "kind": {
+            "default": "all",
+            "description": "all, endpoint, schema, or link.",
+            "title": "Kind",
+            "type": "string"
+          },
+          "limit": {
+            "default": 100,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "ContractGraphParam",
+        "type": "object"
+      },
+      "return_schema": {
+        "description": "Bounded endpoint/schema evidence graph across the caller's repos.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Subtitle"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          },
+          "repo_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Repo Count"
+          },
+          "endpoint_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Endpoint Count"
+          },
+          "schema_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Schema Count"
+          },
+          "link_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Link Count"
+          },
+          "evidence_origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Evidence Origin"
+          },
+          "contracts_complete": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Contracts Complete"
+          },
+          "repositories": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Repositories"
+          },
+          "endpoints": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Endpoints"
+          },
+          "schemas": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Schemas"
+          },
+          "links": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Links"
+          },
+          "freshness": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Freshness"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "CrossRepoContractGraphRecord",
+        "type": "object",
+        "x-sdl": "entity"
+      },
+      "event": "",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "tool_memory_chat"
+    },
+    {
       "name": "list_user_facts",
       "description": "List durable user directives, workspace preferences, and infrastructure facts.",
       "action_type": "read",
@@ -1977,6 +2227,12 @@
             "default": "",
             "description": "Optional filter by category: directive, preference, infra, convention, identity. Empty = all.",
             "title": "Category",
+            "type": "string"
+          },
+          "lifecycle": {
+            "default": "",
+            "description": "Filter by lifecycle: active | resolved | deprecated. Empty = all.",
+            "title": "Lifecycle",
             "type": "string"
           }
         },
@@ -2138,6 +2394,59 @@
                 ],
                 "default": null,
                 "title": "Source"
+              },
+              "lifecycle": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": "active",
+                "description": "active | resolved | deprecated",
+                "title": "Lifecycle"
+              },
+              "scope": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": "global",
+                "description": "global | task | surface",
+                "title": "Scope"
+              },
+              "task_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional associated task or marathon ID",
+                "title": "Task Id"
+              },
+              "resolution_proof": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Physical artifact proof of task completion",
+                "title": "Resolution Proof"
               }
             },
             "required": [
@@ -2229,6 +2538,12 @@
             },
             "title": "Tags",
             "type": "array"
+          },
+          "scope": {
+            "default": "",
+            "description": "Optional scope: global | task | surface (auto-detected if empty)",
+            "title": "Scope",
+            "type": "string"
           }
         },
         "required": [
@@ -2356,6 +2671,18 @@
             "default": null,
             "title": "Fact"
           },
+          "lifecycle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lifecycle"
+          },
           "total_facts": {
             "anyOf": [
               {
@@ -2367,6 +2694,19 @@
             ],
             "default": null,
             "title": "Total Facts"
+          },
+          "proof_of_done": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proof Of Done"
           }
         },
         "required": [
@@ -2417,6 +2757,12 @@
             },
             "title": "Tags",
             "type": "array"
+          },
+          "lifecycle": {
+            "default": "",
+            "description": "Updated lifecycle: active | resolved | deprecated (empty keeps existing)",
+            "title": "Lifecycle",
+            "type": "string"
           }
         },
         "required": [
@@ -2545,6 +2891,18 @@
             "default": null,
             "title": "Fact"
           },
+          "lifecycle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lifecycle"
+          },
           "total_facts": {
             "anyOf": [
               {
@@ -2556,6 +2914,19 @@
             ],
             "default": null,
             "title": "Total Facts"
+          },
+          "proof_of_done": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proof Of Done"
           }
         },
         "required": [
@@ -2714,6 +3085,18 @@
             "default": null,
             "title": "Fact"
           },
+          "lifecycle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lifecycle"
+          },
           "total_facts": {
             "anyOf": [
               {
@@ -2725,6 +3108,19 @@
             ],
             "default": null,
             "title": "Total Facts"
+          },
+          "proof_of_done": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proof Of Done"
           }
         },
         "required": [
@@ -2773,6 +3169,12 @@
             "default": true,
             "description": "Include repository notes and code index in search.",
             "title": "Include Repo Memory",
+            "type": "boolean"
+          },
+          "include_resolved": {
+            "default": false,
+            "description": "Include resolved task-scoped directives (default False, keeps active context clean).",
+            "title": "Include Resolved",
             "type": "boolean"
           }
         },
@@ -2824,6 +3226,32 @@
                 "default": null,
                 "description": "Source file or origin reference",
                 "title": "Citation"
+              },
+              "lifecycle": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": "active",
+                "description": "active | resolved | deprecated",
+                "title": "Lifecycle"
+              },
+              "scope": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": "global",
+                "description": "global | task | surface",
+                "title": "Scope"
               }
             },
             "required": [
@@ -2968,6 +3396,19 @@
             ],
             "default": null,
             "title": "Repo Notes Searched"
+          },
+          "noise_filtered": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 0,
+            "description": "Count of low-relevance or dead-context items pruned",
+            "title": "Noise Filtered"
           }
         },
         "required": [
@@ -3002,7 +3443,9 @@
       "tree": {},
       "icon": "BrainCircuit",
       "refresh": "manual",
-      "center_overlay": true
+      "center_overlay": true,
+      "stale_while_revalidate": true,
+      "cache_ttl": 60
     },
     {
       "panel_id": "repos",
@@ -3011,7 +3454,9 @@
       "tree": {},
       "icon": "BrainCircuit",
       "refresh": "manual",
-      "center_overlay": false
+      "center_overlay": false,
+      "stale_while_revalidate": true,
+      "cache_ttl": 60
     }
   ]
 }

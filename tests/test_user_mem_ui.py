@@ -9,7 +9,7 @@ from panels_user_mem import add_user_fact_modal, delete_user_fact_modal, user_me
 
 
 @pytest.mark.asyncio
-async def test_user_memory_panel_views(redis_mock, make_ctx):
+async def test_user_memory_panel_views(gateway, make_ctx):
     ctx = make_ctx("imp_u_test123")
 
     # 1. Left repos panel includes User & Workspace Facts button

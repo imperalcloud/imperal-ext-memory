@@ -14,7 +14,6 @@ import uuid
 
 from pydantic import BaseModel, Field
 
-import app
 from app import ActionResult, _user_id, chat, safe_err
 from models_user_mem import UserFactListResponse, UserFactOpRecord, UserFactRecord
 from proof_of_done import detect_lifecycle_scope, evaluate_task_resolution
@@ -23,6 +22,7 @@ from storage_user_mem import (
     MAX_USER_FACTS,
     load_user_memory,
     sanitize_fact,
+    forget_user_fact,
     save_user_memory,
 )
 
@@ -87,11 +87,7 @@ async def fn_list_user_facts(ctx, params: ListUserFactsParams) -> ActionResult:
     if not uid:
         return ActionResult.error("Could not identify the calling user.")
 
-    r = await app.get_redis()
-    try:
-        mem = await load_user_memory(ctx, r, uid)
-    finally:
-        await r.aclose()
+    mem = await load_user_memory(ctx, uid)
 
     facts = mem.get("facts", [])
     cat = (params.category or "").strip().lower()
@@ -127,34 +123,33 @@ async def fn_add_user_fact(ctx, params: AddUserFactParams) -> ActionResult:
     if not clean_text:
         return ActionResult.error("Fact text is empty after sanitization.")
 
-    r = await app.get_redis()
+    mem = await load_user_memory(ctx, uid)
+    facts: list[dict] = mem.get("facts", [])
+    if len(facts) >= MAX_USER_FACTS:
+        facts = facts[-(MAX_USER_FACTS - 1):]
+
+    now = int(time.time())
+    fact_id = f"fact_{uuid.uuid4().hex[:10]}"
+    cat = (params.category or "preference").strip().lower()
+    auto_lc, auto_scope = detect_lifecycle_scope(clean_text, cat)
+    chosen_scope = (params.scope or auto_scope).strip().lower()
+
+    new_entry = {
+        "fact_id": fact_id,
+        "category": cat,
+        "fact": clean_text,
+        "tags": [t.strip().lower() for t in params.tags if t.strip()],
+        "created_at": now,
+        "updated_at": now,
+        "source": "chat",
+        "lifecycle": auto_lc,
+        "scope": chosen_scope,
+    }
+    facts.append(new_entry)
     try:
-        mem = await load_user_memory(ctx, r, uid)
-        facts: list[dict] = mem.get("facts", [])
-        if len(facts) >= MAX_USER_FACTS:
-            facts = facts[-(MAX_USER_FACTS - 1):]
-
-        now = int(time.time())
-        fact_id = f"fact_{uuid.uuid4().hex[:10]}"
-        cat = (params.category or "preference").strip().lower()
-        auto_lc, auto_scope = detect_lifecycle_scope(clean_text, cat)
-        chosen_scope = (params.scope or auto_scope).strip().lower()
-
-        new_entry = {
-            "fact_id": fact_id,
-            "category": cat,
-            "fact": clean_text,
-            "tags": [t.strip().lower() for t in params.tags if t.strip()],
-            "created_at": now,
-            "updated_at": now,
-            "source": "chat",
-            "lifecycle": auto_lc,
-            "scope": chosen_scope,
-        }
-        facts.append(new_entry)
-        await save_user_memory(ctx, r, uid, facts)
-    finally:
-        await r.aclose()
+        await save_user_memory(ctx, facts)
+    except Exception as e:
+        return ActionResult.error(f"Failed to remember the fact: {safe_err(e)}")
 
     return ActionResult.success(
         UserFactOpRecord.model_validate({
@@ -191,31 +186,30 @@ async def fn_edit_user_fact(ctx, params: EditUserFactParams) -> ActionResult:
     if not target_id:
         return ActionResult.error("fact_id is required.")
 
-    r = await app.get_redis()
+    mem = await load_user_memory(ctx, uid)
+    facts: list[dict] = mem.get("facts", [])
+    matched = None
+    for f in facts:
+        if f.get("fact_id") == target_id:
+            matched = f
+            break
+
+    if not matched:
+        return ActionResult.error(f"User fact '{target_id}' not found.")
+
+    matched["fact"] = clean_text
+    if params.category:
+        matched["category"] = params.category.strip().lower()
+    if params.tags:
+        matched["tags"] = [t.strip().lower() for t in params.tags if t.strip()]
+    if params.lifecycle:
+        matched["lifecycle"] = params.lifecycle.strip().lower()
+    matched["updated_at"] = int(time.time())
+
     try:
-        mem = await load_user_memory(ctx, r, uid)
-        facts: list[dict] = mem.get("facts", [])
-        matched = None
-        for f in facts:
-            if f.get("fact_id") == target_id:
-                matched = f
-                break
-
-        if not matched:
-            return ActionResult.error(f"User fact '{target_id}' not found.")
-
-        matched["fact"] = clean_text
-        if params.category:
-            matched["category"] = params.category.strip().lower()
-        if params.tags:
-            matched["tags"] = [t.strip().lower() for t in params.tags if t.strip()]
-        if params.lifecycle:
-            matched["lifecycle"] = params.lifecycle.strip().lower()
-        matched["updated_at"] = int(time.time())
-
-        await save_user_memory(ctx, r, uid, facts)
-    finally:
-        await r.aclose()
+        await save_user_memory(ctx, facts)
+    except Exception as e:
+        return ActionResult.error(f"Failed to update the fact: {safe_err(e)}")
 
     return ActionResult.success(
         UserFactOpRecord.model_validate({
@@ -248,17 +242,16 @@ async def fn_delete_user_fact(ctx, params: DeleteUserFactParams) -> ActionResult
     if not target_id:
         return ActionResult.error("fact_id is required.")
 
-    r = await app.get_redis()
-    try:
-        mem = await load_user_memory(ctx, r, uid)
-        facts: list[dict] = mem.get("facts", [])
-        surviving = [f for f in facts if f.get("fact_id") != target_id]
-        if len(surviving) == len(facts):
-            return ActionResult.error(f"User fact '{target_id}' not found.")
+    mem = await load_user_memory(ctx, uid)
+    facts: list[dict] = mem.get("facts", [])
+    surviving = [f for f in facts if f.get("fact_id") != target_id]
+    if len(surviving) == len(facts):
+        return ActionResult.error(f"User fact '{target_id}' not found.")
 
-        await save_user_memory(ctx, r, uid, surviving)
-    finally:
-        await r.aclose()
+    try:
+        await forget_user_fact(ctx, target_id)
+    except Exception as e:
+        return ActionResult.error(f"Failed to delete the fact: {safe_err(e)}")
 
     return ActionResult.success(
         UserFactOpRecord.model_validate({

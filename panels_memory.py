@@ -32,8 +32,7 @@ import logging
 
 from imperal_sdk import ui
 
-import app
-from app import _user_id, ext, load_indexes, load_memories, pick, repo_name
+from app import _user_id, ext, load_repo_memory, pick, repo_name
 from panels_cards import _index_card, _notes_card
 from panels_common import _back, _empty, _err, _nav
 from panels_focus import focus_card, resolve_node
@@ -48,7 +47,6 @@ from panels_user_mem import (
     fact_token,
 )
 from storage_user_mem import load_user_memory
-from app import get_redis
 
 log = logging.getLogger("memory-index")
 
@@ -80,7 +78,7 @@ async def memory_panel(ctx, **kwargs):
     if section == "storage":
         # storage_body renders its own ← when it knows the repo it came from;
         # opened from the overview there is no repo, so the ← goes there.
-        body = await storage_body(uid, back_repo=want)
+        body = await storage_body(ctx, back_repo=want)
         if want:
             return body
         return ui.Stack(direction="v", gap=2, children=[
@@ -88,15 +86,7 @@ async def memory_panel(ctx, **kwargs):
 
     # ── User & Workspace Memory ─────────────────────────────────────────────
     if section == "user_memory":
-        try:
-            r = await app.get_redis()
-            try:
-                user_mem = await load_user_memory(ctx, r, uid)
-            finally:
-                await r.aclose()
-        except Exception as e:
-            log.error("user memory panel load error: %s", e)
-            return _err("Could not load your user memory — try again shortly.")
+        user_mem = await load_user_memory(ctx, uid)
 
         facts = user_mem.get("facts", [])
         cat_filter = str(kwargs.get("cat") or "").strip()
@@ -117,14 +107,13 @@ async def memory_panel(ctx, **kwargs):
     # ── The overview (root of the back chain) ───────────────────────────────
     if not want:
         try:
-            return await overview_body(uid)
+            return await overview_body(ctx)
         except Exception as e:
             log.error("overview load error: %s", e)
             return _err("Could not load your repo memory — try again shortly.")
 
     try:
-        indexes = await load_indexes(uid)
-        memories = await load_memories(uid)
+        indexes, memories = await load_repo_memory(ctx)
     except Exception as e:
         log.error("memory panel load error: %s", e)
         return _err("Could not load this repo's memory — try again shortly.")

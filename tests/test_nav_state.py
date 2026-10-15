@@ -25,7 +25,7 @@ def tree(node) -> str:
 # ── 5. View state must never stick between clicks ─────────────────────
 
 @pytest.mark.asyncio
-async def test_every_nav_action_is_self_describing(redis_mock, make_ctx,
+async def test_every_nav_action_is_self_describing(gateway, make_ctx,
                                                    seed_index, seed_memory):
     """Each click must send the WHOLE view state, not a delta.
 
@@ -59,7 +59,7 @@ async def test_every_nav_action_is_self_describing(redis_mock, make_ctx,
 
 
 @pytest.mark.asyncio
-async def test_repo_click_clears_a_stuck_explainer(redis_mock, make_ctx, seed_index):
+async def test_repo_click_clears_a_stuck_explainer(gateway, make_ctx, seed_index):
     """Opening a repo while the explainer is showing must show the REPO."""
     seed_index("imp_u_TEST", "abc123")
 
@@ -97,7 +97,7 @@ def test_nav_blanks_every_state_key_but_can_omit_one():
 
 
 @pytest.mark.asyncio
-async def test_graph_click_does_not_blank_its_own_node_id(redis_mock, make_ctx,
+async def test_graph_click_does_not_blank_its_own_node_id(gateway, make_ctx,
                                                           seed_index):
     """ui.Graph injects node_id, so ITS action must not pin node_id to ''.
 

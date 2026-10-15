@@ -11,13 +11,11 @@ from __future__ import annotations
 import logging
 from pydantic import BaseModel, Field
 
-import app
 from app import (
     ActionResult,
     _user_id,
     chat,
-    load_indexes,
-    load_memories,
+    load_repo_memory,
     safe_err,
 )
 from models_user_mem import ContextRecallRecord, ContextSnippet
@@ -82,54 +80,49 @@ async def fn_recall_context(ctx, params: RecallContextParams) -> ActionResult:
     # 1. Search User Memory facts
     if params.include_user_facts:
         try:
-            r = await app.get_redis()
-            try:
-                mem = await load_user_memory(ctx, r, uid)
-                facts = mem.get("facts", [])
-                user_facts_searched = len(facts)
-                for f in facts:
-                    lifecycle = f.get("lifecycle", "active")
-                    # If not explicitly marked, evaluate auto-resolution
-                    if lifecycle == "active":
-                        is_res, _ = evaluate_task_resolution(f)
-                        if is_res:
-                            lifecycle = "resolved"
+            mem = await load_user_memory(ctx, uid)
+            facts = mem.get("facts", [])
+            user_facts_searched = len(facts)
+            for f in facts:
+                lifecycle = f.get("lifecycle", "active")
+                # If not explicitly marked, evaluate auto-resolution
+                if lifecycle == "active":
+                    is_res, _ = evaluate_task_resolution(f)
+                    if is_res:
+                        lifecycle = "resolved"
 
-                    if not params.include_resolved and lifecycle in ("resolved", "deprecated"):
-                        continue
+                if not params.include_resolved and lifecycle in ("resolved", "deprecated"):
+                    continue
 
-                    text = f.get("fact", "")
-                    tags = f.get("tags", [])
-                    category = f.get("category", "preference")
-                    score = score_text_relevance(query_tokens, text, tags)
+                text = f.get("fact", "")
+                tags = f.get("tags", [])
+                category = f.get("category", "preference")
+                score = score_text_relevance(query_tokens, text, tags)
 
-                    # Invariant priority: standing directives get boosted relevance
-                    if category == "directive" and f.get("scope") == "global":
-                        score = max(score, 0.85)
+                # Invariant priority: standing directives get boosted relevance
+                if category == "directive" and f.get("scope") == "global":
+                    score = max(score, 0.85)
 
-                    if score >= MIN_RELEVANCE_FLOOR:
-                        scored_snippets.append({
-                            "source_type": "user_fact",
-                            "source_id": f.get("fact_id", "fact"),
-                            "category": category,
-                            "content": text,
-                            "score": score,
-                            "citation": f"category:{category}",
-                            "lifecycle": lifecycle,
-                            "scope": f.get("scope", "global"),
-                        })
-                    else:
-                        noise_filtered += 1
-            finally:
-                await r.aclose()
+                if score >= MIN_RELEVANCE_FLOOR:
+                    scored_snippets.append({
+                        "source_type": "user_fact",
+                        "source_id": f.get("fact_id", "fact"),
+                        "category": category,
+                        "content": text,
+                        "score": score,
+                        "citation": f"category:{category}",
+                        "lifecycle": lifecycle,
+                        "scope": f.get("scope", "global"),
+                    })
+                else:
+                    noise_filtered += 1
         except Exception as e:
             log.warning("User memory recall failed (fail-soft): %s", safe_err(e))
 
     # 2. Search Repository notes and index
     if params.include_repo_memory:
         try:
-            mems = await load_memories(uid)
-            indexes = await load_indexes(uid)
+            indexes, mems = await load_repo_memory(ctx)
             index_by_repo = {idx.get("_repo_key"): idx for idx in indexes}
 
             for m in mems:

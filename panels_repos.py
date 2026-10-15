@@ -24,7 +24,7 @@ async def repos_panel(ctx, **kwargs):
     if not uid:
         return _err("Could not identify you — reopen the panel.")
     try:
-        rows = await _inventory(uid)
+        rows = await _inventory(ctx)
     except Exception as e:
         log.error("repos panel load error: %s", e)
         return _err("Could not load your repo memory — try again shortly.")

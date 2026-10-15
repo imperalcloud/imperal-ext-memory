@@ -127,8 +127,8 @@ def erase_repo_modal(repo_key: str, label: str, entries: list,
         content=ui.Stack(direction="v", gap=2, children=[
             _back_button(repo_key, "← Back to repo"),
             ui.Text(content=(
-                f"This erases {index_line} and {note_line} — both storage keys "
-                f"for this repository. Afterwards the keyspace is re-scanned to "
+                f"This erases {index_line} and {note_line} — this repository's "
+                f"whole vault file. Afterwards your repos are listed afresh to "
                 f"confirm nothing is left.")),
             ui.Alert(type="warning", message=(
                 "The notes cannot be recovered — they are judgement distilled "

@@ -4,8 +4,8 @@ Why a graph rather than more key/value rows: the index IS a graph — a repo
 holds directories, directories hold files, files hold symbols — and that shape
 is unreadable as a flat list of "top_symbols" strings.
 
-Everything here comes from fields the kernel actually persists in
-``imperal:repo_index_map``: ``languages``, ``symbol_kinds``, ``top_symbols``
+Everything here comes from fields the kernel actually persists in the code
+index of the repo's vault file: ``languages``, ``symbol_kinds``, ``top_symbols``
 (each "name (kind) @ path:line"), ``file_count``, ``embedded_chunks``. Nothing
 is synthesised — a missing field degrades the visual instead of inventing
 structure the index does not have.

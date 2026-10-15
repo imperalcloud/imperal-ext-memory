@@ -19,12 +19,20 @@ This extension makes all of it inspectable and — for the notes — editable.
 
 ## What Webbee actually stores
 
-Two kernel-owned Redis stores, one pair per repository:
+Two kernel-written stores, kept together in **one Tenant Vault file per
+repository** — `repos/<repo_key>` — and reached only through the auth gateway's
+owner-scoped `/v1/memory` (the gateway takes no user id; it acts as you). This
+extension keeps no state or cache of its own.
 
-| Store | Key | Holds | Written by | Updates | Bounds |
+| Store | Where | Holds | Written by | Updates | Bounds |
 |---|---|---|---|---|---|
-| **Code index** | `imperal:repo_index_map:{your_id}:{repo_key}` | file/language counts, symbol kinds, key symbols with `file:line`, semantic-chunk count, test hints, endpoint/schema evidence, the exact commit indexed | the terminal coding agent, during indexing | rebuilt from the source tree on the next indexing pass | — |
-| **Durable notes** | `imperal:repo_memory:{your_id}:{repo_key}` | prose facts about the repo (conventions, architecture, gotchas) with file citations | the kernel distiller at the tail of a coding turn — **and by you**, through this extension | appended/merged per turn; your edits apply immediately | 40 notes per repo, 400 chars each, 90-day TTL refreshed on every write |
+| **Code index** | Tenant Vault, `repos/<repo_key>` | file/language counts, symbol kinds, key symbols with `file:line`, semantic-chunk count, test hints, endpoint/schema evidence, the exact commit indexed | the terminal coding agent, during indexing | rebuilt from the source tree on the next indexing pass | — |
+| **Durable notes** | Tenant Vault, `repos/<repo_key>` (same file) | prose facts about the repo (conventions, architecture, gotchas) with file citations | the kernel distiller at the tail of a coding turn — **and by you**, through this extension | appended/merged per turn; your edits apply immediately | 40 notes per repo, 400 chars each, no expiry |
+
+Your user & workspace facts and directives live in the vault's facts/law store.
+A note save carries the version it was read at: if Webbee wrote in between, the
+save is refused and you are asked to retry — your edit is never silently lost,
+and it never silently overwrites a newer note.
 
 `repo_key` is a stable hash of the repository's git origin URL (falling back to
 its absolute path). Same origin ⇒ same key ⇒ the same memory from any checkout,
@@ -46,14 +54,18 @@ is still true.
   index freshness, and whether semantic search is ready.
 * **Memory** (main) — one repo in full: the code index, then every note with
   edit/delete controls, plus an add-note form.
-* **Storage** (main) — the explainer: which key holds what, who writes it, when
+* **Storage** (main) — the explainer: where each store lives, who writes it, when
   it updates, what the caps are — rendered with **live numbers from your own
   data**, not prose claims.
 
 ## Chat tools
 
-Reads — `list_repos`, `get_index`, `list_notes`, `explain_memory`
-Writes — `add_note`, `edit_note`, `delete_note`
+Reads — `list_repos`, `get_index`, `list_notes`, `explain_memory`,
+`get_cross_repo_contract_graph`, `recall_context`, `list_user_facts`
+Writes — `add_note`, `edit_note`, `delete_note`, `add_user_fact`,
+`edit_user_fact`, `delete_user_fact`
+Destructive — `delete_repo` (erases a repo's vault file, then verifies by a
+fresh listing that it is gone)
 
 All work from every surface: panel chat, Telegram, and the terminal.
 
@@ -67,20 +79,21 @@ uses, in this order:
    credentials, AWS/GitHub/Slack/Stripe/GCP key shapes → `[REDACTED]`.
 2. **Fence neutralisation** — newlines collapsed and `<<<` / `>>>` runs made
    inert, so stored text can never break out of its DATA frame and be read as an
-   instruction (stored prompt-injection with a 90-day shelf life otherwise).
+   instruction (stored prompt-injection with no expiry otherwise).
 3. **Clamp + LRU cap** — 400 chars per note, 40 notes per repo, oldest evicted.
 
-Every key is derived from the kernel-authoritative `ctx.user.imperal_id`: you
-can only ever reach your own repositories. There is no cross-user surface, which
+Every call acts as the kernel-authoritative `ctx.user.imperal_id`, and the
+gateway accepts no user id: you can only ever reach your own repositories. There is no cross-user surface, which
 is why no admin scope is required.
 
-Reads are **fail-soft**: if Redis is unavailable you get an honest "nothing
-stored yet", never a broken turn.
+Reads are **fail-soft**: if the vault is unreachable you get an honest
+"nothing stored yet", never a broken turn. Writes are not: a note save that
+fails is reported as an error.
 
 ## Development
 
 ```bash
-python -m pytest tests/ -q     # 19 tests
+python -m pytest tests/ -q
 imperal build .                # regenerate imperal.json from the code
 imperal validate .             # federal SDK rules (V1-V24+V31)
 ```

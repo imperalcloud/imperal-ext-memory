@@ -1,4 +1,4 @@
-"""Memory & Index v1.0.0 · repo index + durable notes — system extension."""
+"""Memory & Index v1.1.0 · repo index + durable notes — system extension."""
 from __future__ import annotations
 
 import sys, os

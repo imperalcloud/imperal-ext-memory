@@ -15,8 +15,7 @@ from app import (
     _user_id,
     chat,
     known_repos,
-    load_indexes,
-    load_memories,
+    load_repo_memory,
     pick,
     safe_err,
     sanitize_note,
@@ -50,8 +49,7 @@ async def fn_add_note(ctx, params: AddNoteParams) -> ActionResult:
         return ActionResult.error("The note is empty after sanitising — nothing stored.")
 
     try:
-        mems = await load_memories(uid)
-        indexes = await load_indexes(uid)
+        indexes, mems = await load_repo_memory(ctx)
         chosen = pick(mems, params.repo)
         if chosen is None:
             # No note-set yet for this repo: fall back to a known indexed repo.
@@ -62,9 +60,10 @@ async def fn_add_note(ctx, params: AddNoteParams) -> ActionResult:
                     f"No repo matches '{params.repo}'. Known: {known_repos(pool)}"
                     if params.repo else
                     "No repos known yet — open one in the Webbee terminal agent first.")
-            repo_key, entries = idx.get("_repo_key", ""), []
+            repo_key, entries, version = idx.get("_repo_key", ""), [], None
         else:
             repo_key, entries = chosen.get("_repo_key", ""), list(chosen.get("entries") or [])
+            version = chosen.get("_version")
 
         now = int(time.time())
         # Upsert like the kernel distiller: a re-stated fact refreshes, never duplicates.
@@ -79,7 +78,7 @@ async def fn_add_note(ctx, params: AddNoteParams) -> ActionResult:
             "distilled_at": now,
         })
         evicted = max(0, len(entries) - MAX_ENTRIES)
-        await save_entries(ctx, uid, repo_key, entries)
+        await save_entries(ctx, repo_key, entries, version)
     except Exception as e:
         return ActionResult.error(f"Failed to store the note: {safe_err(e)}")
 
@@ -109,7 +108,7 @@ async def fn_edit_note(ctx, params: EditNoteParams) -> ActionResult:
         return ActionResult.error("The new text is empty after sanitising — nothing changed.")
 
     try:
-        chosen, err = await _resolve_notes(uid, params.repo)
+        chosen, err = await _resolve_notes(ctx, params.repo)
         if err:
             return ActionResult.error(err)
         repo_key = chosen.get("_repo_key", "")
@@ -125,7 +124,7 @@ async def fn_edit_note(ctx, params: EditNoteParams) -> ActionResult:
             "source": "user-edited",
             "edited_at": int(time.time()),
         }
-        await save_entries(ctx, uid, repo_key, entries)
+        await save_entries(ctx, repo_key, entries, chosen.get("_version"))
     except Exception as e:
         return ActionResult.error(f"Failed to edit the note: {safe_err(e)}")
 
@@ -151,7 +150,7 @@ async def fn_delete_note(ctx, params: DeleteNoteParams) -> ActionResult:
     if not uid:
         return ActionResult.error("Could not identify the calling user.")
     try:
-        chosen, err = await _resolve_notes(uid, params.repo)
+        chosen, err = await _resolve_notes(ctx, params.repo)
         if err:
             return ActionResult.error(err)
         repo_key = chosen.get("_repo_key", "")
@@ -161,7 +160,7 @@ async def fn_delete_note(ctx, params: DeleteNoteParams) -> ActionResult:
                 f"Position {params.position} does not exist — repo {repo_key[:12]} has "
                 f"{len(entries)} note(s). Use list_notes to see the numbers.")
         removed = str(entries.pop(params.position - 1).get("note") or "")
-        await save_entries(ctx, uid, repo_key, entries)
+        await save_entries(ctx, repo_key, entries, chosen.get("_version"))
     except Exception as e:
         return ActionResult.error(f"Failed to delete the note: {safe_err(e)}")
 

@@ -6,19 +6,16 @@ entirely. Different blast radius, different action_type, different tests.
 
 Why this can honestly promise "nothing is left":
 
-  Repo memory lives in exactly TWO Redis key families and nowhere else —
-  ``imperal:repo_index_map:{uid}:{repo_key}`` and
-  ``imperal:repo_memory:{uid}:{repo_key}``. That was checked three ways
-  before this tool was written: the kernel source that writes them
-  (core/repo_index_map.py, core/repo_memory.py), a grep for any SQL table
-  behind them (there is none), and a live scan of the running keyspace.
-  ``embedded_chunks``/``vectors_ready`` on the index map are a COPIED COUNT
-  reported by the terminal client — not a handle to a vector store — so
-  there is no third place to clean.
+  Repo memory lives in exactly ONE place: the repo's Tenant Vault file
+  ``repos/<repo_key>``, which holds the code index AND the durable notes
+  together, and which the gateway's ``DELETE /v1/memory/repo`` removes as a
+  whole. ``embedded_chunks``/``vectors_ready`` on the index map are a COPIED
+  COUNT reported by the terminal client — not a handle to a vector store —
+  so there is no second place to clean.
 
-The delete therefore does NOT stop at issuing DEL: ``purge_repo`` re-scans
-the keyspace afterwards and reports what survived. If anything did, this
-handler says so instead of claiming success.
+The delete therefore does NOT stop at asking the vault: ``purge_repo``
+re-lists the caller's repos afterwards and reports whether this one is still
+there. If it is, this handler says so instead of claiming success.
 """
 from __future__ import annotations
 
@@ -27,8 +24,7 @@ from app import (
     _user_id,
     chat,
     known_repos,
-    load_indexes,
-    load_memories,
+    load_repo_memory,
     pick,
     purge_repo,
     repo_name,
@@ -47,12 +43,12 @@ from models import PurgeRecord
     description=(
         "Permanently erase EVERYTHING Webbee remembers about one repository — "
         "its code index AND all its durable notes — from storage, and verify "
-        "afterwards that no key survived. This cannot be undone: the notes are "
+        "afterwards that nothing survived. This cannot be undone: the notes are "
         "gone for good, while the code index only comes back if that repo is "
         "opened in the Webbee terminal agent again."),
 )
 async def fn_delete_repo(ctx, params: DeleteRepoParams) -> ActionResult:
-    """Erase one repo's index + notes, then verify the keyspace is clean."""
+    """Erase one repo's index + notes, then verify the vault no longer lists it."""
     uid = _user_id(ctx)
     if not uid:
         return ActionResult.error("Could not identify the calling user.")
@@ -64,8 +60,7 @@ async def fn_delete_repo(ctx, params: DeleteRepoParams) -> ActionResult:
             "so it is never applied to a guessed default.")
 
     try:
-        indexes = await load_indexes(uid)
-        memories = await load_memories(uid)
+        indexes, memories = await load_repo_memory(ctx)
     except Exception as e:
         return ActionResult.error(f"Failed to read repo memory: {safe_err(e)}")
 
@@ -86,14 +81,14 @@ async def fn_delete_repo(ctx, params: DeleteRepoParams) -> ActionResult:
     if not repo_key:
         return ActionResult.error("Resolved a repo without a storage key — nothing erased.")
 
-    # Both stores are keyed by repo_key, so resolving from either side is
-    # enough to erase the pair.
+    # Index and notes share one vault file keyed by repo_key, so resolving
+    # from either side is enough to erase both.
     label = repo_name(
         (idx or {}).get("repo_root") or (mem or {}).get("repo_root") or "",
         repo_key)
 
     try:
-        result = await purge_repo(uid, repo_key)
+        result = await purge_repo(ctx, repo_key)
     except Exception as e:
         return ActionResult.error(f"Failed to erase repo memory: {safe_err(e)}")
 
@@ -106,23 +101,20 @@ async def fn_delete_repo(ctx, params: DeleteRepoParams) -> ActionResult:
     what = " and ".join(bits) if bits else "nothing (already empty)"
 
     if not result["verified"]:
-        # Never report a clean wipe the re-scan does not support. ActionResult
-        # .error() carries no data payload, so the surviving keys are NAMED in
-        # the message itself — a bare "something is left" would tell the user
-        # the guarantee failed while withholding the one detail that makes it
-        # actionable.
-        leftovers = result["leftover_keys"]
-        shown = ", ".join(sorted(leftovers)[:5])
-        more = f" (+{len(leftovers) - 5} more)" if len(leftovers) > 5 else ""
+        # Never report a clean wipe the re-listing does not support.
+        # ActionResult.error() carries no data payload, so what survived is
+        # NAMED in the message itself.
         return ActionResult.error(
-            f"Erased {what} for {label}, but the verification scan still finds "
-            f"{len(leftovers)} key(s): {shown}{more}. The wipe is NOT confirmed "
-            f"— retry, and if they persist the storage layer needs a look.",
+            f"Asked the vault to erase {what} for {label} ({repo_key}), but a fresh "
+            f"listing still shows that repo"
+            f"{'' if result['deleted'] else ' and the vault reported nothing deleted'}. "
+            f"The wipe is NOT confirmed — retry, and if it persists the storage "
+            f"layer needs a look.",
             retryable=True)
 
     return ActionResult.success(
         data=result,
         summary=(f"Erased {what} for {label} ({repo_key[:12]}). "
-                 f"{result['keys_deleted']} storage key(s) removed and verified gone — "
-                 f"no leftovers. The notes are unrecoverable; the code index rebuilds "
+                 f"Its vault file is removed and a fresh listing confirms it is gone "
+                 f"— nothing left. The notes are unrecoverable; the code index rebuilds "
                  f"only if you open this repo in the Webbee terminal agent again."))

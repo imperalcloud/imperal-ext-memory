@@ -12,22 +12,20 @@ import logging
 from imperal_sdk import ui
 
 from app import (
-    INDEX_PREFIX,
     MAX_ENTRIES,
-    MEMORY_PREFIX,
     NOTE_CHARS,
-    REPO_MEM_TTL,
-    load_indexes,
-    load_memories,
+    load_repo_memory,
 )
 from panels_common import _err, _nav
 
 log = logging.getLogger("memory-index")
 
-_RETENTION_DAYS = REPO_MEM_TTL // 86400
+# Where both stores live: ONE Tenant Vault file per repo holds the code index
+# and the durable notes together (see memory_client.py / app.purge_repo).
+_VAULT_FILE = "Tenant Vault, repos/{repo key} — one file per repo"
 
 
-async def storage_body(uid: str, back_repo: str = ""):
+async def storage_body(ctx, back_repo: str = ""):
     """The explainer tree, renderable from ANYWHERE (not only its own panel).
 
     Exists as a function rather than only a panel because a second
@@ -42,8 +40,7 @@ async def storage_body(uid: str, back_repo: str = ""):
     is nothing to go back to.
     """
     try:
-        indexes = await load_indexes(uid)
-        memories = await load_memories(uid)
+        indexes, memories = await load_repo_memory(ctx)
     except Exception as e:
         log.error("storage panel load error: %s", e)
         return _err("Could not read your storage summary — try again shortly.")
@@ -58,7 +55,7 @@ async def storage_body(uid: str, back_repo: str = ""):
         ui.Card(title="1. Code index — the structural map",
                 content=ui.Stack(direction="v", gap=1, children=[
                     ui.KeyValue(items=[
-                        {"key": "Stored at", "value": f"{INDEX_PREFIX}{{your id}}:{{repo key}}"},
+                        {"key": "Stored at", "value": _VAULT_FILE},
                         {"key": "Written by", "value": "the terminal coding agent, while indexing"},
                         {"key": "Updates", "value": "on every indexing pass — fully rebuilt, never patched"},
                         {"key": "Holds", "value": "file/language counts, symbol counts, key symbols "
@@ -71,11 +68,11 @@ async def storage_body(uid: str, back_repo: str = ""):
         ui.Card(title="2. Durable notes — what Webbee learned",
                 content=ui.Stack(direction="v", gap=1, children=[
                     ui.KeyValue(items=[
-                        {"key": "Stored at", "value": f"{MEMORY_PREFIX}{{your id}}:{{repo key}}"},
+                        {"key": "Stored at", "value": _VAULT_FILE},
                         {"key": "Written by", "value": "the distiller, at the tail of a coding turn"},
                         {"key": "Updates", "value": "same fact re-confirmed = refreshed in place, "
                                                     "moved to newest"},
-                        {"key": "Kept for", "value": f"{_RETENTION_DAYS} days, renewed on every write"},
+                        {"key": "Kept for", "value": "no expiry — until replaced, deleted or erased"},
                         {"key": "Caps", "value": f"{MAX_ENTRIES} newest notes per repo, "
                                                  f"{NOTE_CHARS} chars each"},
                         {"key": "Your notes", "value": f"{total_notes} across {len(note_keys)} repo(s)"},
@@ -107,7 +104,7 @@ async def storage_body(uid: str, back_repo: str = ""):
             ui.Stat(label="Indexed repos", value=str(len(index_keys))),
             ui.Stat(label="Repos with notes", value=str(len(note_keys))),
             ui.Stat(label="Total notes", value=str(total_notes)),
-            ui.Stat(label="Retention", value=f"{_RETENTION_DAYS}d"),
+            ui.Stat(label="Retention", value="no expiry"),
         ]),
     ]
     children.extend(stores)

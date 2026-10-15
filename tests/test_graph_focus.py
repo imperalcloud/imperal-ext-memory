@@ -73,7 +73,7 @@ def _titles(node):
 
 @pytest.mark.asyncio
 async def test_every_node_the_graph_draws_can_be_explained(
-        redis_mock, make_ctx, seed_index, store):
+        gateway, make_ctx, seed_index):
     """No circle may be a dead end — the bug was five kinds that were.
 
     Walks the actual nodes of the actual graph, including the symbol circles
@@ -87,10 +87,7 @@ async def test_every_node_the_graph_draws_can_be_explained(
     graph = _graph_of(view)
     assert graph is not None
 
-    import json
-
-    from app import INDEX_PREFIX
-    idx = json.loads(store[f"{INDEX_PREFIX}imp_u_TEST:abc123"])
+    idx = gateway.files["imp_u_TEST"]["abc123"]["index"]
 
     ids = [n["id"] for n in graph.props["nodes"]]
     assert "repo" in ids, "the core circle must exist to be clickable"
@@ -118,7 +115,7 @@ async def test_every_node_the_graph_draws_can_be_explained(
 
 @pytest.mark.asyncio
 async def test_clicking_a_language_answers_in_words_not_another_graph(
-        redis_mock, make_ctx, seed_index):
+        gateway, make_ctx, seed_index):
     """A language click must produce a titled card, not a silent redraw."""
     _rich_index(seed_index)
     ctx = make_ctx("imp_u_TEST")
@@ -137,17 +134,14 @@ async def test_clicking_a_language_answers_in_words_not_another_graph(
 
 @pytest.mark.asyncio
 async def test_only_files_and_symbols_expand_the_graph(
-        redis_mock, make_ctx, seed_index, store):
+        gateway, make_ctx, seed_index):
     """`focus` drives expansion, so non-file circles must not claim one.
 
     A language or kind circle has no single path to expand; if it returned one
     the graph would sprout symbols under an unrelated file.
     """
     _rich_index(seed_index)
-    import json
-
-    from app import INDEX_PREFIX
-    idx = json.loads(store[f"{INDEX_PREFIX}imp_u_TEST:abc123"])
+    idx = gateway.files["imp_u_TEST"]["abc123"]["index"]
 
     for nid in ("repo", "L0", "K0"):
         assert resolve_node(idx, nid).get("focus") == "", nid
@@ -156,7 +150,7 @@ async def test_only_files_and_symbols_expand_the_graph(
 
 @pytest.mark.asyncio
 async def test_every_clicked_view_offers_a_back_step(
-        redis_mock, make_ctx, seed_index):
+        gateway, make_ctx, seed_index):
     """The card carries its own ← back, per the standing rule for every view."""
     _rich_index(seed_index)
     out = await panels.memory_panel(
@@ -172,13 +166,10 @@ async def test_every_clicked_view_offers_a_back_step(
 
 @pytest.mark.asyncio
 async def test_a_meaningless_node_id_is_ignored_not_guessed(
-        redis_mock, make_ctx, seed_index, store):
+        gateway, make_ctx, seed_index):
     """Out-of-range and junk ids resolve to nothing, and the view stays whole."""
     _rich_index(seed_index)
-    import json
-
-    from app import INDEX_PREFIX
-    idx = json.loads(store[f"{INDEX_PREFIX}imp_u_TEST:abc123"])
+    idx = gateway.files["imp_u_TEST"]["abc123"]["index"]
 
     for nid in ("", None, "L99", "f99", "d99", "K99", "f0s99", "nonsense"):
         assert resolve_node(idx, nid) == {}, nid

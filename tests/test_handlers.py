@@ -3,18 +3,16 @@
 Focus, in order of importance:
 
 1. WRITE SAFETY — a note the user types is re-injected into the coding brain's
-   prompt for up to 90 days, so ``sanitize_note`` MUST scrub secrets and
+   prompt with no expiry, so ``sanitize_note`` MUST scrub secrets and
    neutralize ``<<< >>>`` fence delimiters. These tests are the guard against
    turning this panel into stored prompt-injection.
-2. STORAGE CONTRACT — writes must keep the kernel's own shape
-   (``{user_id, repo_key, entries}``), the 40-entry LRU cap and the 90-day TTL
-   refresh, or the kernel distiller and this extension would fight each other.
+2. STORAGE CONTRACT — writes must keep the kernel's own entry shape and the
+   40-entry LRU cap, and carry the version they read, or the kernel distiller
+   and this extension would fight each other.
 3. READ HONESTY — empty stores answer "nothing yet", never a fabricated list;
    an unknown repo name is an error naming the known ones.
-4. ISOLATION — every key is derived from ctx.user.imperal_id.
+4. ISOLATION — every call acts as ctx.user.imperal_id.
 """
-import json
-
 import pytest
 
 import app as app_mod
@@ -64,27 +62,22 @@ def test_sanitize_note_rejects_blank():
 # ── 2. STORAGE CONTRACT ───────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_add_note_persists_kernel_shape_and_ttl(redis_mock, make_ctx, seed_memory):
-    """A write must keep {user_id, repo_key, entries} and refresh the 90d TTL."""
+async def test_add_note_persists_kernel_shape(gateway, make_ctx, seed_memory):
+    """A write keeps the existing entries and appends a kernel-shaped one."""
     seed_memory("imp_u_TEST", "abc123", ["existing fact"])
     ctx = make_ctx("imp_u_TEST")
 
     res = await h.fn_add_note(ctx, h.AddNoteParams(note="new fact", repo="abc123"))
     assert res.status == "success", res.error
 
-    key = f"{app_mod.MEMORY_PREFIX}imp_u_TEST:abc123"
-    payload = json.loads(redis_mock.store[key])
-    assert payload["user_id"] == "imp_u_TEST"
-    assert payload["repo_key"] == "abc123"
-    assert isinstance(payload["entries"], list)
-
-    # TTL must be the kernel's 90-day safety net, refreshed on write.
-    _, _, ex = redis_mock.created[-1].set_calls[-1]
-    assert ex == app_mod.REPO_MEM_TTL
+    stored = gateway.files["imp_u_TEST"]["abc123"]
+    assert [e["note"] for e in stored["entries"]] == ["existing fact", "new fact"]
+    assert {"note", "citations", "distilled_at", "edited_at"} <= set(stored["entries"][-1])
+    assert stored["version"] == 2, "exactly one write, on top of the seeded version"
 
 
 @pytest.mark.asyncio
-async def test_add_note_enforces_lru_cap(redis_mock, make_ctx, seed_memory):
+async def test_add_note_enforces_lru_cap(gateway, make_ctx, seed_memory):
     """Storage is LRU-bounded at MAX_ENTRIES; the oldest note is evicted."""
     existing = [f"fact {i}" for i in range(app_mod.MAX_ENTRIES)]
     seed_memory("imp_u_TEST", "abc123", existing)
@@ -93,8 +86,7 @@ async def test_add_note_enforces_lru_cap(redis_mock, make_ctx, seed_memory):
     res = await h.fn_add_note(ctx, h.AddNoteParams(note="the newest fact", repo="abc123"))
     assert res.status == "success"
 
-    entries = json.loads(
-        redis_mock.store[f"{app_mod.MEMORY_PREFIX}imp_u_TEST:abc123"])["entries"]
+    entries = gateway.files["imp_u_TEST"]["abc123"]["entries"]
     assert len(entries) == app_mod.MAX_ENTRIES
     notes = [e.get("note") for e in entries]
     assert "the newest fact" in notes
@@ -102,21 +94,21 @@ async def test_add_note_enforces_lru_cap(redis_mock, make_ctx, seed_memory):
 
 
 @pytest.mark.asyncio
-async def test_add_note_sanitizes_before_persist(redis_mock, make_ctx, seed_memory):
-    """End-to-end: a secret typed into the panel never reaches Redis intact."""
-    seed_memory("imp_u_TEST", "abc123", [])
+async def test_add_note_sanitizes_before_persist(gateway, make_ctx, seed_index):
+    """End-to-end: a secret typed into the panel never reaches the vault intact."""
+    seed_index("imp_u_TEST", "abc123")
     ctx = make_ctx("imp_u_TEST")
 
     await h.fn_add_note(
         ctx, h.AddNoteParams(note="deploy key is sk-abcdefghijklmnopqrstuvwx", repo="abc123"))
 
-    raw = redis_mock.store[f"{app_mod.MEMORY_PREFIX}imp_u_TEST:abc123"]
+    raw = str(gateway.files["imp_u_TEST"]["abc123"]["entries"])
     assert "sk-abcdefghijklmnopqrstuvwx" not in raw
     assert "REDACTED" in raw
 
 
 @pytest.mark.asyncio
-async def test_edit_note_replaces_in_place(redis_mock, make_ctx, seed_memory):
+async def test_edit_note_replaces_in_place(gateway, make_ctx, seed_memory):
     seed_memory("imp_u_TEST", "abc123", ["old truth", "other fact"])
     ctx = make_ctx("imp_u_TEST")
 
@@ -124,8 +116,7 @@ async def test_edit_note_replaces_in_place(redis_mock, make_ctx, seed_memory):
         ctx, h.EditNoteParams(position=1, note="corrected truth", repo="abc123"))
     assert res.status == "success", res.error
 
-    entries = json.loads(
-        redis_mock.store[f"{app_mod.MEMORY_PREFIX}imp_u_TEST:abc123"])["entries"]
+    entries = gateway.files["imp_u_TEST"]["abc123"]["entries"]
     notes = [e.get("note") for e in entries]
     assert "corrected truth" in notes
     assert "old truth" not in notes
@@ -133,22 +124,21 @@ async def test_edit_note_replaces_in_place(redis_mock, make_ctx, seed_memory):
 
 
 @pytest.mark.asyncio
-async def test_delete_note_removes_only_target(redis_mock, make_ctx, seed_memory):
+async def test_delete_note_removes_only_target(gateway, make_ctx, seed_memory):
     seed_memory("imp_u_TEST", "abc123", ["keep me", "delete me", "keep me too"])
     ctx = make_ctx("imp_u_TEST")
 
     res = await h.fn_delete_note(ctx, h.DeleteNoteParams(position=2, repo="abc123"))
     assert res.status == "success", res.error
 
-    entries = json.loads(
-        redis_mock.store[f"{app_mod.MEMORY_PREFIX}imp_u_TEST:abc123"])["entries"]
+    entries = gateway.files["imp_u_TEST"]["abc123"]["entries"]
     notes = [e.get("note") for e in entries]
     assert len(notes) == 2
     assert "delete me" not in notes
 
 
 @pytest.mark.asyncio
-async def test_edit_note_rejects_out_of_range(redis_mock, make_ctx, seed_memory):
+async def test_edit_note_rejects_out_of_range(gateway, make_ctx, seed_memory):
     seed_memory("imp_u_TEST", "abc123", ["only one"])
     ctx = make_ctx("imp_u_TEST")
 
@@ -161,14 +151,14 @@ async def test_edit_note_rejects_out_of_range(redis_mock, make_ctx, seed_memory)
 # ── 3. READ HONESTY ───────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_list_repos_empty_says_so(redis_mock, make_ctx):
+async def test_list_repos_empty_says_so(gateway, make_ctx):
     res = await h.fn_list_repos(make_ctx("imp_u_TEST"), h.EmptyParams())
     assert res.status == "success"
     assert res.data == [] or not res.data
 
 
 @pytest.mark.asyncio
-async def test_list_repos_reports_index_and_notes(redis_mock, make_ctx,
+async def test_list_repos_reports_index_and_notes(gateway, make_ctx,
                                                  seed_index, seed_memory):
     seed_index("imp_u_TEST", "abc123", file_count=42)
     seed_memory("imp_u_TEST", "abc123", ["a fact"])
@@ -182,7 +172,7 @@ async def test_list_repos_reports_index_and_notes(redis_mock, make_ctx,
 
 
 @pytest.mark.asyncio
-async def test_get_index_unknown_repo_names_known_ones(redis_mock, make_ctx, seed_index):
+async def test_get_index_unknown_repo_names_known_ones(gateway, make_ctx, seed_index):
     seed_index("imp_u_TEST", "abc123", file_count=5)
 
     res = await h.fn_get_index(make_ctx("imp_u_TEST"), h.RepoParams(repo="nope"))
@@ -191,7 +181,7 @@ async def test_get_index_unknown_repo_names_known_ones(redis_mock, make_ctx, see
 
 
 @pytest.mark.asyncio
-async def test_get_index_passes_stored_fields_through(redis_mock, make_ctx, seed_index):
+async def test_get_index_passes_stored_fields_through(gateway, make_ctx, seed_index):
     seed_index("imp_u_TEST", "abc123", file_count=7)
 
     res = await h.fn_get_index(make_ctx("imp_u_TEST"), h.RepoParams(repo="abc123"))
@@ -201,7 +191,7 @@ async def test_get_index_passes_stored_fields_through(redis_mock, make_ctx, seed
 
 
 @pytest.mark.asyncio
-async def test_list_notes_newest_first(redis_mock, make_ctx, seed_memory):
+async def test_list_notes_newest_first(gateway, make_ctx, seed_memory):
     # Storage keeps newest at the tail (LRU); a reader wants freshest first.
     seed_memory("imp_u_TEST", "abc123", ["oldest", "middle", "newest"])
 
@@ -212,9 +202,9 @@ async def test_list_notes_newest_first(redis_mock, make_ctx, seed_memory):
 
 
 @pytest.mark.asyncio
-async def test_explain_memory_reports_live_numbers(redis_mock, make_ctx,
+async def test_explain_memory_reports_live_numbers(gateway, make_ctx,
                                                    seed_index, seed_memory):
-    """The explainer must count the caller's real keys, not recite prose."""
+    """The explainer must count the caller's real data, not recite prose."""
     seed_index("imp_u_TEST", "abc123", file_count=10)
     seed_memory("imp_u_TEST", "abc123", ["one", "two"])
 
@@ -224,13 +214,13 @@ async def test_explain_memory_reports_live_numbers(redis_mock, make_ctx,
     assert res.data["note_repo_count"] == 1
     assert res.data["total_notes"] == 2
     assert res.data["max_notes_per_repo"] == app_mod.MAX_ENTRIES
-    assert res.data["retention_days"] == app_mod.REPO_MEM_TTL // 86400
+    assert "retention_days" not in res.data, "notes have no expiry to report"
 
 
 # ── 4. ISOLATION ──────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_reads_are_scoped_to_caller(redis_mock, make_ctx, seed_index):
+async def test_reads_are_scoped_to_caller(gateway, make_ctx, seed_index):
     seed_index("imp_u_OTHER", "zzz999", file_count=99)
     seed_index("imp_u_TEST", "abc123", file_count=1)
 
@@ -240,7 +230,7 @@ async def test_reads_are_scoped_to_caller(redis_mock, make_ctx, seed_index):
 
 
 @pytest.mark.asyncio
-async def test_no_user_id_is_a_clean_error(redis_mock):
+async def test_no_user_id_is_a_clean_error(gateway):
     from types import SimpleNamespace
     ctx = SimpleNamespace(user=None)
     res = await h.fn_list_repos(ctx, h.EmptyParams())
@@ -248,12 +238,14 @@ async def test_no_user_id_is_a_clean_error(redis_mock):
 
 
 @pytest.mark.asyncio
-async def test_redis_outage_is_fail_soft(monkeypatch, make_ctx):
-    """A Redis outage must degrade to an honest answer, never raise."""
-    async def _boom():
-        raise ConnectionError("redis down")
+async def test_gateway_outage_is_fail_soft(monkeypatch, make_ctx):
+    """A gateway/vault outage must degrade to an honest answer, never raise."""
+    from tests.conftest import FakeMemoryClient
 
-    monkeypatch.setattr(app_mod, "get_redis", _boom)
+    async def _boom(self):
+        raise ConnectionError("gateway down")
+
+    monkeypatch.setattr(FakeMemoryClient, "repos", _boom)
     res = await h.fn_list_repos(make_ctx("imp_u_TEST"), h.EmptyParams())
     assert res.status == "success"  # fail-soft: empty inventory, not an exception
     assert res.data == [] or not res.data

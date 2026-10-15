@@ -1,28 +1,23 @@
 """Memory & Index · User & Workspace Memory storage layer.
 
-Stores durable user preferences, directives, workflows, and infrastructure facts
-in Redis under the key:
-    imperal:user_memory:{user_id}
+Durable user preferences, directives, workflows, and infrastructure facts live
+in the Tenant Vault's facts/law store, reached only through the gateway's
+owner-scoped /v1/memory (see memory_client.py). Nothing is kept locally.
 
 Provides contextual retrieval (BM25 / token-overlap & tag scoring)
 to select the most relevant facts for a given prompt/query without bloating the LLM context.
 """
 from __future__ import annotations
 
-import json
 import logging
 import math
 import re
-import time
-from typing import Any
 
-import redis.asyncio as aioredis
+from memory_client import memory_api
 from safety import neutralize_fence, scrub_secrets
 
 log = logging.getLogger("memory-index.user_mem")
 
-USER_MEMORY_PREFIX = "imperal:user_memory:"
-USER_MEM_TTL = 180 * 86400  # 180 days, refreshed on write
 MAX_USER_FACTS = 100
 MAX_FACT_CHARS = 500
 
@@ -36,49 +31,29 @@ def sanitize_fact(text: str) -> str:
     return defused[:MAX_FACT_CHARS].strip()
 
 
-async def load_user_memory(ctx, r: aioredis.Redis, uid: str) -> dict:
+async def load_user_memory(ctx, uid: str) -> dict:
     """Load user memory from the Tenant Vault (through the gateway's
-    owner-scoped /v1/memory), with Redis as fallback."""
+    owner-scoped /v1/memory). Fail-soft: no facts."""
     try:
-        from memory_client import memory_api
-        vault_facts = (await memory_api(ctx).facts() or {}).get("facts", [])
-        if vault_facts:
-            return {"user_id": uid, "facts": vault_facts}
+        facts = (await memory_api(ctx).facts() or {}).get("facts") or []
     except Exception as e:
-        log.debug("load_user_memory memory read failed (fail-soft): %s", e)
-
-    key = f"{USER_MEMORY_PREFIX}{uid}"
-    try:
-        if r:
-            raw = await r.get(key)
-            if raw:
-                data = json.loads(raw)
-                if isinstance(data, dict) and isinstance(data.get("facts"), list):
-                    return data
-    except Exception as e:
-        log.warning("Failed to load user memory for %s: %s", uid, e)
-    return {"user_id": uid, "facts": []}
+        log.warning("load_user_memory memory read failed (fail-soft): %s", e)
+        facts = []
+    return {"user_id": uid, "facts": facts}
 
 
-async def save_user_memory(ctx, r: aioredis.Redis, uid: str, facts: list[dict]) -> None:
+async def save_user_memory(ctx, facts: list[dict]) -> None:
     """Persist user facts to the Tenant Vault (through the gateway's
-    owner-scoped /v1/memory), updating the Redis live cache."""
+    owner-scoped /v1/memory). RAISES on failure: a fact that was not stored
+    must never be reported as remembered."""
     if len(facts) > MAX_USER_FACTS:
         facts = facts[-MAX_USER_FACTS:]
+    await memory_api(ctx).save_facts(facts)
 
-    try:
-        from memory_client import memory_api
-        await memory_api(ctx).save_facts(facts)
-    except Exception as e:
-        log.warning("save_user_memory memory write failed (fail-soft): %s", e)
 
-    key = f"{USER_MEMORY_PREFIX}{uid}"
-    try:
-        if r:
-            payload = json.dumps({"user_id": uid, "facts": facts, "updated_at": int(time.time())})
-            await r.set(key, payload, ex=USER_MEM_TTL)
-    except Exception as e:
-        log.warning("save_user_memory redis cache failed (fail-soft): %s", e)
+async def forget_user_fact(ctx, fact_id: str) -> None:
+    """Remove one fact from the Tenant Vault. RAISES on failure."""
+    await memory_api(ctx).delete_fact(fact_id)
 
 
 _STOPWORDS = {

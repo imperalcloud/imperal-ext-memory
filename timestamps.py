@@ -1,15 +1,15 @@
 """Memory & Index · Timestamp normalisation.
 
-Both Redis stores this extension reads are written by the KERNEL, and
+The repo memory this extension reads is written by the KERNEL, and
 successive generations of the distiller used DIFFERENT timestamp shapes for
 the same field:
 
-    imperal:repo_memory:…:0527e446e3fd   distilled_at = '2026-08-13T22:39:53+00:00'
-    imperal:repo_memory:…:f20e613c68f0   distilled_at = 1787212894
-    …:updated_at                          None
+    repos/0527e446e3fd   note distilled_at = '2026-08-13T22:39:53+00:00'
+    repos/f20e613c68f0   note distilled_at = 1787212894
+    index updated_at     None
 
 All three are valid, none can be retro-fixed (the kernel owns the writes and
-old rows live up to 90 days), so the extension has to cope with the mix.
+old notes are kept with no expiry), so the extension has to cope with the mix.
 
 It did not. Ordering "freshest first" compared a str against an int, Python
 raised ``TypeError``, and one account holding both shapes lost the ENTIRE

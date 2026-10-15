@@ -24,8 +24,6 @@ Two rules come out of that, and both are tested here:
    read would have shown half the notes as undated. Parsing it is the same
    fix as sorting it.
 """
-import json
-
 import pytest
 
 import app as app_mod
@@ -38,83 +36,69 @@ ISO_EPOCH = 1786775993          # the same instant, seconds since epoch
 EPOCH = 1787212894              # newer than ISO_EPOCH
 
 
-def _seed_mixed(store, uid="imp_u_TEST"):
+def _seed_mixed(seed_memory, uid="imp_u_TEST"):
     """The exact production shape: ISO notes in one repo, epoch in another."""
-    store[f"{app_mod.MEMORY_PREFIX}{uid}:iso_repo"] = json.dumps({
-        "user_id": uid, "repo_key": "iso_repo", "updated_at": None,
-        "entries": [{"note": "written by the older distiller",
-                     "citations": [], "distilled_at": ISO, "edited_at": None}],
-    })
-    store[f"{app_mod.MEMORY_PREFIX}{uid}:epoch_repo"] = json.dumps({
-        "user_id": uid, "repo_key": "epoch_repo", "updated_at": None,
-        "entries": [{"note": "written by the current distiller",
-                     "citations": [], "distilled_at": EPOCH, "edited_at": EPOCH}],
-    })
+    seed_memory(uid, "iso_repo", [{"note": "written by the older distiller",
+                                   "citations": [], "distilled_at": ISO, "edited_at": None}])
+    seed_memory(uid, "epoch_repo", [{"note": "written by the current distiller",
+                                     "citations": [], "distilled_at": EPOCH, "edited_at": EPOCH}])
 
 
 # ── 1. the read must survive mixed shapes ────────────────────────────
 
 @pytest.mark.asyncio
-async def test_load_memories_survives_mixed_timestamp_shapes(redis_mock, store):
-    """The crash itself: ISO string vs epoch int in one keyspace."""
-    _seed_mixed(store)
-    out = await app_mod.load_memories("imp_u_TEST")
+async def test_load_memories_survives_mixed_timestamp_shapes(make_ctx, seed_memory):
+    """The crash itself: ISO string vs epoch int in one account."""
+    _seed_mixed(seed_memory)
+    out = await app_mod.load_memories(make_ctx())
     assert len(out) == 2, out
 
 
 @pytest.mark.asyncio
-async def test_load_memories_orders_newest_first_across_shapes(redis_mock, store):
+async def test_load_memories_orders_newest_first_across_shapes(make_ctx, seed_memory):
     """Not just 'does not crash' — the ISO note really is the older one, and
     ordering must reflect that instead of falling back on dict order."""
-    _seed_mixed(store)
-    out = await app_mod.load_memories("imp_u_TEST")
+    _seed_mixed(seed_memory)
+    out = await app_mod.load_memories(make_ctx())
     assert [d["_repo_key"] for d in out] == ["epoch_repo", "iso_repo"], out
 
 
 @pytest.mark.asyncio
-async def test_load_indexes_survives_mixed_updated_at(redis_mock, store):
+async def test_load_indexes_survives_mixed_updated_at(make_ctx, seed_index):
     """Same defect, other store: index maps sort on updated_at."""
-    uid = "imp_u_TEST"
-    store[f"{app_mod.INDEX_PREFIX}{uid}:a"] = json.dumps(
-        {"repo_root": "/x/a", "updated_at": ISO})
-    store[f"{app_mod.INDEX_PREFIX}{uid}:b"] = json.dumps(
-        {"repo_root": "/x/b", "updated_at": EPOCH})
-    out = await app_mod.load_indexes(uid)
+    seed_index("imp_u_TEST", "a", repo_root="/x/a", updated_at=ISO)
+    seed_index("imp_u_TEST", "b", repo_root="/x/b", updated_at=EPOCH)
+    out = await app_mod.load_indexes(make_ctx())
     assert [d["_repo_key"] for d in out] == ["b", "a"], out
 
 
 @pytest.mark.asyncio
-async def test_list_repos_reports_both_repos_not_an_error(redis_mock, store, make_ctx):
+async def test_list_repos_reports_both_repos_not_an_error(seed_memory, make_ctx):
     """End to end: the tool the panel calls answers with data, not the
     'Could not load your repo memory' the user actually saw."""
-    _seed_mixed(store)
+    _seed_mixed(seed_memory)
     res = await h.fn_list_repos(make_ctx(), h.EmptyParams())
     assert res.status == "success", getattr(res, "error", res)
     assert len(res.data) == 2, res.data
 
 
 @pytest.mark.asyncio
-async def test_inventory_panel_survives_mixed_shapes(redis_mock, store, make_ctx):
+async def test_inventory_panel_survives_mixed_shapes(seed_memory, make_ctx):
     """The panel builds its own inventory rows and sorts them too."""
-    _seed_mixed(store)
-    rows = await panels_common._inventory("imp_u_TEST")   # takes the uid, not ctx
+    _seed_mixed(seed_memory)
+    rows = await panels_common._inventory(make_ctx())
     assert len(rows) == 2, rows
 
 
 # ── 2. junk must not be mistaken for a timestamp ─────────────────────
 
 @pytest.mark.asyncio
-async def test_unparseable_timestamps_sort_last_and_do_not_raise(redis_mock, store):
+async def test_unparseable_timestamps_sort_last_and_do_not_raise(make_ctx, seed_memory):
     """A malformed value is not newer than everything else just because it is
     a string — it sorts as unknown (oldest), and never raises."""
-    uid = "imp_u_TEST"
-    store[f"{app_mod.MEMORY_PREFIX}{uid}:junk"] = json.dumps({
-        "user_id": uid, "repo_key": "junk", "entries": [
-            {"note": "n", "citations": [], "distilled_at": "not-a-date"}]})
-    store[f"{app_mod.MEMORY_PREFIX}{uid}:good"] = json.dumps({
-        "user_id": uid, "repo_key": "good", "entries": [
-            {"note": "n", "citations": [], "distilled_at": EPOCH}]})
-    out = await app_mod.load_memories(uid)
+    seed_memory("imp_u_TEST", "junk", [{"note": "n", "citations": [], "distilled_at": "not-a-date"}])
+    seed_memory("imp_u_TEST", "good", [{"note": "n", "citations": [], "distilled_at": EPOCH}])
+    out = await app_mod.load_memories(make_ctx())
     assert [d["_repo_key"] for d in out] == ["good", "junk"], out
 
 

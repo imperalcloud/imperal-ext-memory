@@ -31,7 +31,7 @@ def test_sanitize_fact():
 
 
 @pytest.mark.asyncio
-async def test_add_list_edit_delete_user_fact(redis_mock, make_ctx):
+async def test_add_list_edit_delete_user_fact(gateway, make_ctx):
     ctx = make_ctx("imp_u_test123")
 
     # 1. Add fact
@@ -80,12 +80,28 @@ async def test_add_list_edit_delete_user_fact(redis_mock, make_ctx):
     assert len(snippets) > 0
     assert any("deploy runbook" in s.content for s in snippets)
 
-    # 5. Delete fact
-    p_del = DeleteUserFactParams(fact_id=fact_id)
-    res_del = await fn_delete_user_fact(ctx, p_del)
+
+
+@pytest.mark.asyncio
+async def test_delete_user_fact_removes_it_from_the_vault(gateway, make_ctx):
+    ctx = make_ctx("imp_u_test123")
+    res_add = await fn_add_user_fact(ctx, AddUserFactParams(fact="Deploy on Fridays is banned."))
+    fact_id = res_add.data.fact_id
+
+    res_del = await fn_delete_user_fact(ctx, DeleteUserFactParams(fact_id=fact_id))
     assert res_del.status == "success", res_del.error
     assert res_del.data.action == "deleted"
 
-    # Verify deleted
-    res_list2 = await fn_list_user_facts(ctx, ListUserFactsParams())
-    assert not any(item.fact_id == fact_id for item in res_list2.data.items)
+    res_list = await fn_list_user_facts(ctx, ListUserFactsParams())
+    assert not any(item.fact_id == fact_id for item in res_list.data.items)
+
+
+@pytest.mark.asyncio
+async def test_a_failed_fact_write_is_never_reported_as_saved(gateway, make_ctx, monkeypatch):
+    ctx = make_ctx("imp_u_test123")
+
+    async def down(self, facts):
+        raise RuntimeError("memory store unavailable")
+    monkeypatch.setattr(type(ctx._gw_namespace("memory", None)), "save_facts", down)
+    res = await fn_add_user_fact(ctx, AddUserFactParams(fact="Deploy on Fridays is banned."))
+    assert res.status == "error"

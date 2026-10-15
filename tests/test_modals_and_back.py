@@ -54,7 +54,7 @@ def backs(node) -> list:
 
 @pytest.mark.asyncio
 async def test_erase_modal_does_not_reappear_after_the_repo_is_gone(
-        redis_mock, make_ctx, seed_index, seed_memory, store):
+        gateway, make_ctx, seed_index, seed_memory):
     """confirm=1 outliving the erase must not re-open the confirmation.
 
     The reported bug: pressing a button in the modal closed it on the client,
@@ -66,7 +66,7 @@ async def test_erase_modal_does_not_reappear_after_the_repo_is_gone(
 
     assert has(await panels.memory_panel(ctx, repo="abc123", confirm="1"), "Dialog")
 
-    store.clear()  # the erase succeeded — nothing is stored for it any more
+    gateway.files.clear()  # the erase succeeded — nothing is stored for it any more
 
     after = await panels.memory_panel(ctx, repo="abc123", confirm="1")
     assert not has(after, "Dialog"), "modal came back after the repo was erased"
@@ -75,7 +75,7 @@ async def test_erase_modal_does_not_reappear_after_the_repo_is_gone(
 
 @pytest.mark.asyncio
 async def test_inline_editor_always_carries_the_notes_current_text(
-        redis_mock, make_ctx, seed_index, seed_memory):
+        gateway, make_ctx, seed_index, seed_memory):
     """The editor is part of the note, and it never opens a window.
 
     This replaces a modal-based editor. A window driven by view state could
@@ -103,7 +103,7 @@ async def test_inline_editor_always_carries_the_notes_current_text(
 
 @pytest.mark.asyncio
 async def test_forget_modal_does_not_retarget_a_different_note(
-        redis_mock, make_ctx, seed_index, seed_memory):
+        gateway, make_ctx, seed_index, seed_memory):
     """Deleting note #1 shifts the list — forget=1 must not aim at the next one.
 
     Position alone is not identity: without the fingerprint the surviving
@@ -132,7 +132,7 @@ async def test_forget_modal_does_not_retarget_a_different_note(
     {"forget": "1"},
 ])
 async def test_every_modal_keeps_the_repo_view_underneath(
-        redis_mock, make_ctx, seed_index, seed_memory, state):
+        gateway, make_ctx, seed_index, seed_memory, state):
     """Opening a window must not blank the section behind it.
 
     The old code returned the modal INSTEAD of the view, which is why opening
@@ -161,7 +161,7 @@ async def test_every_modal_keeps_the_repo_view_underneath(
 
 @pytest.mark.asyncio
 async def test_editing_needs_no_view_state_at_all(
-        redis_mock, make_ctx, seed_index, seed_memory):
+        gateway, make_ctx, seed_index, seed_memory):
     """A stale edit= from an old link must do nothing whatsoever.
 
     Old bookmarks and the browser back button both replay params, so the
@@ -184,7 +184,7 @@ async def test_editing_needs_no_view_state_at_all(
 
 @pytest.mark.asyncio
 async def test_graph_shows_aggregate_language_and_symbol_tiers(
-        redis_mock, make_ctx, seed_index):
+        gateway, make_ctx, seed_index):
     """The graph must reflect the whole repo, not just its 20 named symbols.
 
     top_symbols caps at 20 entries, so structural tiers alone described ~20
@@ -209,7 +209,7 @@ async def test_graph_shows_aggregate_language_and_symbol_tiers(
 
 
 @pytest.mark.asyncio
-async def test_graph_tiers_survive_a_junk_index(redis_mock, make_ctx, seed_index):
+async def test_graph_tiers_survive_a_junk_index(gateway, make_ctx, seed_index):
     """Non-numeric or empty aggregate entries are skipped, never rendered."""
     seed_index("imp_u_TEST", "abc123",
                file_count=9,

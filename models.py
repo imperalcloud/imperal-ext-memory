@@ -1,8 +1,7 @@
 """Memory & Index · SDL records.
 
-Field names mirror the ACTUAL payload the kernel persists into
-``imperal:repo_index_map:{user_id}:{repo_key}`` and
-``imperal:repo_memory:{user_id}:{repo_key}`` — federal
+Field names mirror the ACTUAL payload the kernel persists into the repo's
+Tenant Vault file ``repos/<repo_key>`` (code index + durable notes) — federal
 I-EXT-RECORD-FIELD-NAMING-SYMMETRIC. Nothing is re-shaped for display: the
 handlers hand the stored map through as-is, which is what makes $REF paths
 verifiable instead of aspirational.
@@ -162,11 +161,12 @@ class NoteOpRecord(sdl.Entity):
 class PurgeRecord(sdl.Entity):
     """Outcome of erasing ONE repo's memory — a verified fact, not an intent.
 
-    ``verified`` is the result of a fresh keyspace scan performed AFTER the
-    delete, and ``leftover_keys`` names anything that survived it. They are
-    modelled as first-class fields precisely so the answer cannot claim a
-    clean wipe while something remains: if the re-scan finds a key, the
-    record says so and the narrator has to report it.
+    ``deleted`` is what the vault said about its own delete; ``still_listed``
+    is the result of a fresh listing performed AFTER it, and ``verified`` is
+    its negation. They are modelled as first-class fields precisely so the
+    answer cannot claim a clean wipe while something remains: if the
+    re-listing still shows the repo, the record says so and the narrator has
+    to report it.
     """
 
     repo_key: Optional[str] = None
@@ -174,8 +174,8 @@ class PurgeRecord(sdl.Entity):
     had_index: Optional[bool] = None
     had_notes: Optional[bool] = None
     notes_removed: Optional[int] = None
-    keys_deleted: Optional[int] = None
-    leftover_keys: Optional[list] = None
+    deleted: Optional[bool] = None
+    still_listed: Optional[bool] = None
     verified: Optional[bool] = None
 
     @model_validator(mode="before")
@@ -185,8 +185,8 @@ class PurgeRecord(sdl.Entity):
             key = d.get("repo_key") or ""
             d.setdefault("id", key or "repo-purge")
             label = d.get("repo_label") or key or "repo"
-            n = int(d.get("keys_deleted") or 0)
-            d.setdefault("title", f"Erased {label} — {n} key{'' if n == 1 else 's'} removed")
+            state = "verified gone" if d.get("verified") else "NOT confirmed"
+            d.setdefault("title", f"Erased {label} — {state}")
             d.setdefault("kind", "repo_purge")
         return d
 
@@ -201,7 +201,6 @@ class MemoryExplainerRecord(sdl.Entity):
     total_notes: Optional[int] = None
     max_notes_per_repo: Optional[int] = None
     note_char_limit: Optional[int] = None
-    retention_days: Optional[int] = None
     orphan_note_repos: Optional[list] = None
 
     @model_validator(mode="before")
@@ -211,4 +210,29 @@ class MemoryExplainerRecord(sdl.Entity):
             d.setdefault("id", "memory-explainer")
             d.setdefault("title", "How Webbee's repo memory works")
             d.setdefault("kind", "explainer")
+        return d
+
+
+class CrossRepoContractGraphRecord(sdl.Entity):
+    """Bounded endpoint/schema evidence graph across the caller's repos."""
+
+    repo_count: Optional[int] = None
+    endpoint_count: Optional[int] = None
+    schema_count: Optional[int] = None
+    link_count: Optional[int] = None
+    evidence_origin: Optional[str] = None
+    contracts_complete: Optional[bool] = None
+    repositories: Optional[list] = None
+    endpoints: Optional[list] = None
+    schemas: Optional[list] = None
+    links: Optional[list] = None
+    freshness: Optional[list] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _c(cls, d):
+        if isinstance(d, dict):
+            d["id"] = "cross-repo-contract-graph"
+            d.setdefault("title", f"Cross-repo contracts — {d.get('repo_count', 0)} repos")
+            d.setdefault("kind", "cross_repo_contract_graph")
         return d

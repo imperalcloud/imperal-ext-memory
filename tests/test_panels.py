@@ -29,7 +29,7 @@ def tree(node) -> str:
 # ── 1. "How is this stored?" must open the explainer ──────────────────
 
 @pytest.mark.asyncio
-async def test_storage_button_targets_a_panel_that_mounts(redis_mock, make_ctx,
+async def test_storage_button_targets_a_panel_that_mounts(gateway, make_ctx,
                                                          seed_index):
     """The inventory button must route to a section, NOT to __panel__storage.
 
@@ -46,7 +46,7 @@ async def test_storage_button_targets_a_panel_that_mounts(redis_mock, make_ctx,
 
 
 @pytest.mark.asyncio
-async def test_memory_panel_renders_the_explainer_section(redis_mock, make_ctx,
+async def test_memory_panel_renders_the_explainer_section(gateway, make_ctx,
                                                           seed_index):
     """section=storage must render the explainer, not a repo view."""
     seed_index("imp_u_TEST", "abc123")
@@ -56,7 +56,7 @@ async def test_memory_panel_renders_the_explainer_section(redis_mock, make_ctx,
 
 
 @pytest.mark.asyncio
-async def test_explainer_works_for_a_user_with_no_memory(redis_mock, make_ctx):
+async def test_explainer_works_for_a_user_with_no_memory(gateway, make_ctx):
     """The explainer must open even on an empty account.
 
     It is resolved before any repo lookup precisely so a new user can read
@@ -71,7 +71,7 @@ async def test_explainer_works_for_a_user_with_no_memory(redis_mock, make_ctx):
 
 @pytest.mark.asyncio
 async def test_edit_renders_a_prefilled_form_instead_of_saving(
-        redis_mock, make_ctx, seed_index, seed_memory):
+        gateway, make_ctx, seed_index, seed_memory):
     """Every note ships its editor inline, pre-filled with its CURRENT text.
 
     No param opens it: the field is already in the tree, inside a collapsible
@@ -91,7 +91,7 @@ async def test_edit_renders_a_prefilled_form_instead_of_saving(
 
 @pytest.mark.asyncio
 async def test_note_view_does_not_call_edit_note_on_click(
-        redis_mock, make_ctx, seed_index, seed_memory):
+        gateway, make_ctx, seed_index, seed_memory):
     """Nothing on the notes card may write on a click.
 
     Two regressions in one guard. The first Edit button called edit_note with
@@ -112,7 +112,7 @@ async def test_note_view_does_not_call_edit_note_on_click(
 
 @pytest.mark.asyncio
 async def test_out_of_range_and_junk_forget_positions_are_ignored(
-        redis_mock, make_ctx, seed_index, seed_memory):
+        gateway, make_ctx, seed_index, seed_memory):
     """A bad forget= must render the normal view, never raise.
 
     Panel params arrive as strings from the frontend, so a non-numeric value
@@ -133,7 +133,7 @@ async def test_out_of_range_and_junk_forget_positions_are_ignored(
 
 @pytest.mark.asyncio
 async def test_forget_shows_a_strict_modal_naming_the_note(
-        redis_mock, make_ctx, seed_index, seed_memory):
+        gateway, make_ctx, seed_index, seed_memory):
     """forget=<n> must open a strict dialog quoting the note about to be lost."""
     seed_index("imp_u_TEST", "abc123")
     seed_memory("imp_u_TEST", "abc123", ["deploys via deploy.sh", "second note"])
@@ -150,7 +150,7 @@ async def test_forget_shows_a_strict_modal_naming_the_note(
 
 @pytest.mark.asyncio
 async def test_note_view_does_not_call_delete_note_on_click(
-        redis_mock, make_ctx, seed_index, seed_memory):
+        gateway, make_ctx, seed_index, seed_memory):
     """The Forget BUTTON must open the modal — never delete on the spot."""
     seed_index("imp_u_TEST", "abc123")
     seed_memory("imp_u_TEST", "abc123", ["a fact"])
@@ -165,7 +165,7 @@ async def test_note_view_does_not_call_delete_note_on_click(
 
 @pytest.mark.asyncio
 async def test_index_renders_a_clickable_graph_and_charts(
-        redis_mock, make_ctx, seed_index):
+        gateway, make_ctx, seed_index):
     """A populated index must produce a Graph and Charts, not just tables."""
     seed_index("imp_u_TEST", "abc123",
                file_count=3107,
@@ -185,7 +185,7 @@ async def test_index_renders_a_clickable_graph_and_charts(
 
 
 @pytest.mark.asyncio
-async def test_graph_focuses_the_clicked_file(redis_mock, make_ctx, seed_index):
+async def test_graph_focuses_the_clicked_file(gateway, make_ctx, seed_index):
     """Clicking a file node must focus that file's symbols.
 
     ui.Graph injects the clicked node's id as node_id, so the panel resolves it
@@ -207,7 +207,7 @@ async def test_graph_focuses_the_clicked_file(redis_mock, make_ctx, seed_index):
 
 
 @pytest.mark.asyncio
-async def test_graph_node_ids_are_selector_safe(redis_mock, make_ctx, seed_index):
+async def test_graph_node_ids_are_selector_safe(gateway, make_ctx, seed_index):
     """No ':' '.' or '/' in any node/edge id — the exact reason it drew nothing."""
     seed_index("imp_u_TEST", "abc123",
                top_symbols=[
@@ -234,7 +234,7 @@ async def test_graph_node_ids_are_selector_safe(redis_mock, make_ctx, seed_index
 
 @pytest.mark.asyncio
 async def test_thin_index_degrades_instead_of_faking_structure(
-        redis_mock, make_ctx, seed_index):
+        gateway, make_ctx, seed_index):
     """An index with no symbols/languages must render WITHOUT inventing a graph."""
     seed_index("imp_u_TEST", "thin01", file_count=0, languages={},
                symbol_kinds={}, top_symbols=[])
@@ -246,7 +246,7 @@ async def test_thin_index_degrades_instead_of_faking_structure(
 
 
 @pytest.mark.asyncio
-async def test_unparsable_symbols_are_skipped_not_guessed(redis_mock, make_ctx,
+async def test_unparsable_symbols_are_skipped_not_guessed(gateway, make_ctx,
                                                           seed_index):
     """Symbols not matching the kernel's format must be dropped silently.
 

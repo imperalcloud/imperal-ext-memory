@@ -23,9 +23,9 @@ def _lang(row: dict) -> str:
     return ", ".join(f"{k} {v:,}" for k, v in top)
 
 
-async def overview_body(uid: str):
+async def overview_body(ctx):
     """Every repo Webbee holds memory for, as openable cards."""
-    rows = await _inventory(uid)
+    rows = await _inventory(ctx)
     if not rows:
         return _empty(
             "No repo memory yet",

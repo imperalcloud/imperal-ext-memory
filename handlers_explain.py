@@ -10,12 +10,10 @@ from __future__ import annotations
 from app import (
     MAX_ENTRIES,
     NOTE_CHARS,
-    REPO_MEM_TTL,
     ActionResult,
     _user_id,
     chat,
-    load_indexes,
-    load_memories,
+    load_repo_memory,
     safe_err,
 )
 from handlers_params import EmptyParams
@@ -36,8 +34,7 @@ async def fn_explain_memory(ctx, params: EmptyParams) -> ActionResult:
     if not uid:
         return ActionResult.error("Could not identify the calling user.")
     try:
-        indexes = await load_indexes(uid)
-        memories = await load_memories(uid)
+        indexes, memories = await load_repo_memory(ctx)
     except Exception as e:
         return ActionResult.error(f"Failed to inspect memory: {safe_err(e)}")
 
@@ -49,7 +46,7 @@ async def fn_explain_memory(ctx, params: EmptyParams) -> ActionResult:
     stores = [
         {
             "name": "Code index",
-            "where": "imperal:repo_index_map:{your_id}:{repo_key}",
+            "where": "Tenant Vault, repos/{repo_key} (one file per repo, with its notes)",
             "holds": ("File and language counts, how many functions/classes exist, key "
                       "symbols with file:line, semantic-chunk count, the exact commit."),
             "written_by": "The Webbee terminal coding agent, when it indexes a repo.",
@@ -61,14 +58,14 @@ async def fn_explain_memory(ctx, params: EmptyParams) -> ActionResult:
         },
         {
             "name": "Durable notes",
-            "where": "imperal:repo_memory:{your_id}:{repo_key}",
+            "where": "Tenant Vault, repos/{repo_key} (one file per repo, with its code index)",
             "holds": ("Prose facts learned while coding: conventions, architecture, "
                       "build/test commands, gotchas — with file citations."),
             "written_by": ("A distiller that runs at the tail of a coding turn, after the "
                            "answer was already delivered."),
             "updates": (f"Newest {MAX_ENTRIES} kept per repo; a re-confirmed fact replaces "
                         f"its older copy; each note is capped at {NOTE_CHARS} chars and "
-                        f"kept {REPO_MEM_TTL // 86400} days, refreshed on every write."),
+                        f"kept with no expiry until it is replaced or deleted."),
             "editable": True,
             "why_not_editable": "",
             "your_count": total_notes,
@@ -93,7 +90,6 @@ async def fn_explain_memory(ctx, params: EmptyParams) -> ActionResult:
         "total_notes": total_notes,
         "max_notes_per_repo": MAX_ENTRIES,
         "note_char_limit": NOTE_CHARS,
-        "retention_days": REPO_MEM_TTL // 86400,
         "orphan_note_repos": orphans,
     }
 
@@ -107,6 +103,6 @@ async def fn_explain_memory(ctx, params: EmptyParams) -> ActionResult:
                  f"{total_notes} durable note(s) across {len(memories)} repo(s).\n"
                  f"• Code index — rebuilt from your files each indexing pass (read-only)\n"
                  f"• Durable notes — distilled after coding turns, newest {MAX_ENTRIES} per "
-                 f"repo, kept {REPO_MEM_TTL // 86400}d (editable)\n"
+                 f"repo, no expiry (editable)\n"
                  f"• Semantic chunks — regenerated with the index (read-only)"
                  + orphan_line))

@@ -9,14 +9,13 @@ from __future__ import annotations
 
 from app import (
     MAX_ENTRIES,
-    REPO_MEM_TTL,
     ActionResult,
     _user_id,
     age,
     chat,
     known_repos,
     load_indexes,
-    load_memories,
+    load_repo_memory,
     pick,
     repo_name,
     safe_err,
@@ -39,8 +38,7 @@ async def fn_list_repos(ctx, params: EmptyParams) -> ActionResult:
     if not uid:
         return ActionResult.error("Could not identify the calling user.")
     try:
-        indexes = await load_indexes(uid)
-        memories = await load_memories(uid)
+        indexes, memories = await load_repo_memory(ctx)
     except Exception as e:
         return ActionResult.error(f"Failed to read repo memory: {safe_err(e)}")
 
@@ -108,7 +106,7 @@ async def fn_get_index(ctx, params: RepoParams) -> ActionResult:
     if not uid:
         return ActionResult.error("Could not identify the calling user.")
     try:
-        indexes = await load_indexes(uid)
+        indexes = await load_indexes(ctx)
     except Exception as e:
         return ActionResult.error(f"Failed to read the code index: {safe_err(e)}")
     if not indexes:
@@ -152,7 +150,7 @@ async def fn_list_notes(ctx, params: RepoParams) -> ActionResult:
     if not uid:
         return ActionResult.error("Could not identify the calling user.")
     try:
-        chosen, err = await _resolve_notes(uid, params.repo)
+        chosen, err = await _resolve_notes(ctx, params.repo)
     except Exception as e:
         return ActionResult.error(f"Failed to read notes: {safe_err(e)}")
     if err:
@@ -173,5 +171,5 @@ async def fn_list_notes(ctx, params: RepoParams) -> ActionResult:
     return ActionResult.success(
         data=rows,
         summary=(f"{len(rows)} note(s) for repo {key[:12]} "
-                 f"(cap {MAX_ENTRIES}, kept {REPO_MEM_TTL // 86400}d):\n"
+                 f"(cap {MAX_ENTRIES}, no expiry):\n"
                  + "\n".join(lines) + more))

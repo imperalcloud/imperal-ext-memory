@@ -11,19 +11,17 @@ import logging
 
 from imperal_sdk import ui
 
-from app import MAX_ENTRIES, NOTE_CHARS, REPO_MEM_TTL, age, repo_name
+from app import MAX_ENTRIES, NOTE_CHARS, age, repo_name
 from panels_common import _nav
 from panels_modals import note_token
 
 log = logging.getLogger("memory-index")
 
-_RETENTION_DAYS = REPO_MEM_TTL // 86400
-
 
 def _num(value) -> int:
     """A count from the index, or 0 — never an exception.
 
-    These dicts come straight out of Redis, so one non-numeric value used to
+    These dicts come straight out of the vault as the kernel wrote them, so one non-numeric value used to
     take the ENTIRE repo view down: sorting by value raised TypeError comparing
     str to int before anything rendered.
     """
@@ -99,9 +97,8 @@ def _notes_card(repo_key: str, entries: list) -> ui.Card:
     """
     children = [
         ui.Alert(type="info", message=(
-            f"Editable. Notes are distilled at the end of a coding turn, kept for "
-            f"{_RETENTION_DAYS} days (refreshed on every write), and capped at the "
-            f"{MAX_ENTRIES} newest per repo.")),
+            f"Editable. Notes are distilled at the end of a coding turn, kept with "
+            f"no expiry, and capped at the {MAX_ENTRIES} newest per repo.")),
     ]
 
     if not entries:

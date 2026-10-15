@@ -89,9 +89,9 @@ def _notes_payload(repo_key: str, entries: list) -> list[dict]:
     return out
 
 
-async def _resolve_notes(uid: str, want: str):
+async def _resolve_notes(ctx, want: str):
     """(memory_dict, error_message) for a repo selector."""
-    mems = await load_memories(uid)
+    mems = await load_memories(ctx)
     if not mems:
         return None, ("No durable notes stored yet. They build up automatically as the "
                       "Webbee terminal agent works in a repository.")
