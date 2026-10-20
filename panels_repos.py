@@ -11,7 +11,8 @@ import logging
 
 from imperal_sdk import ui
 
-from app import _user_id, ext, repo_name
+from app import _user_id, age, ext, repo_name
+from memory_client import memory_api
 from panels_common import _empty, _err, _inventory, _nav
 
 log = logging.getLogger("memory-index")
@@ -34,6 +35,12 @@ async def repos_panel(ctx, **kwargs):
             "No repo memory yet",
             "Open a repository in the Webbee terminal agent. The code index it "
             "builds and the notes it distils show up here automatically.")
+
+    try:   # the vault's code catalog: where each repo lives, how it is reached, how fresh it is
+        catalog = {str(c.get("repo_key")): c for c in ((await memory_api(ctx).code_repos()) or {}).get("repos") or []
+                   if isinstance(c, dict)}
+    except Exception:
+        catalog = {}
 
     indexed = sum(1 for r in rows if r["has_index"])
     noted = sum(1 for r in rows if r["has_notes"])
@@ -60,16 +67,26 @@ async def repos_panel(ctx, **kwargs):
     items = []
     for r in rows:
         badges = []
-        if r["has_index"]:
+        c = catalog.get(r["repo_key"])
+        if c is not None:
+            # a synced repo: the machine and how it is reached, the graph's counts, how fresh, what is partial
+            sources = ", ".join(sorted({str(s.get("kind") or "") for s in c.get("sources") or []
+                                        if isinstance(s, dict) and s.get("kind")}))
+            badges.append(f"{c.get('machine_label') or 'local'}" + (f" via {sources}" if sources else ""))
+            badges.append(f"{c.get('files') or 0} files · {c.get('defs') or 0} defs · {c.get('links') or 0} links")
+        elif r["has_index"]:
             badges.append(f"{r['file_count']} files")
         if r["has_notes"]:
             badges.append(f"{r['note_count']} notes")
-        if not r["has_index"]:
+        if not r["has_index"] and c is None:
             badges.append("notes only")
+        when = f" · synced {age(c.get('synced_at'))}" if c is not None else (
+            f" · indexed {r['indexed']}" if r["has_index"] else "")
+        partial = f" · partial: {str(c.get('partial_reason'))[:80]}" if c is not None and c.get("partial_reason") else ""
         items.append(ui.ListItem(
             id=r["repo_key"],
-            title=repo_name(r["repo_root"], r["repo_key"]),
-            subtitle=" · ".join(badges) + (f" · indexed {r['indexed']}" if r["has_index"] else ""),
+            title=repo_name((c or {}).get("root_path") or r["repo_root"], r["repo_key"]),
+            subtitle=" · ".join(badges) + when + partial,
             on_click=_nav(repo=r["repo_key"]),
         ))
 

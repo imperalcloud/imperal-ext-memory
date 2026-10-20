@@ -45,7 +45,7 @@ MAX_ENTRIES = 40                        # core.repo_memory.MAX_ENTRIES
 NOTE_CHARS = 400                        # core.repo_memory._NOTE_CHARS
 
 ext = Extension(
-    "memory-index", version="1.1.0",
+    "memory-index", version="1.2.0",
     # Federal-rigor scope surface (I-SCOPES-DECLARED-NOT-WILDCARD): this app
     # reads the caller's own code index and edits the caller's own durable
     # notes — declare exactly that, never a wildcard, for a system app that
@@ -173,9 +173,65 @@ async def _memories(ctx, repos: list[dict]) -> list[dict]:
     return out
 
 
+def _graph_map(repo: dict, graph: dict | None) -> dict:
+    """A synced repo (the vault's code catalog + its graph) in the code-index map's shape, so every
+    reader of a map -- inventory, graph, charts, explain -- shows the vault graph unchanged."""
+    graph = graph if isinstance(graph, dict) else {}
+    files = [f for f in graph.get("files") or [] if isinstance(f, dict)]
+    defs = [d for d in graph.get("defs") or [] if isinstance(d, dict)]
+    langs: dict[str, int] = {}
+    for f in files:
+        if f.get("lang"):
+            langs[str(f["lang"])] = langs.get(str(f["lang"]), 0) + 1
+    kinds: dict[str, int] = {}
+    for d in defs:
+        kinds[str(d.get("kind") or "?")] = kinds.get(str(d.get("kind") or "?"), 0) + 1
+    sources = [s for s in repo.get("sources") or [] if isinstance(s, dict)]
+    return {
+        "_repo_key": repo["repo_key"], "_synced": True,
+        "repo_root": repo.get("root_path") or "", "file_count": int(repo.get("files") or repo.get("file_count") or 0),
+        "def_count": int(repo.get("defs") or 0), "link_count": int(repo.get("links") or 0),
+        "languages": langs, "symbol_kinds": kinds,
+        "top_symbols": [f"{d.get('qualname')} ({d.get('kind')}) @ {d.get('path')}:{d.get('start_line')}"
+                        for d in defs][:60],
+        "git_ref": str(repo.get("git_ref") or "")[:40], "branch": repo.get("git_branch") or "",
+        "updated_at": repo.get("synced_at") or 0, "embedded_chunks": 0, "vectors_ready": False,
+        "machine": repo.get("machine_label") or repo.get("machine") or "",
+        "sources": [f"{s.get('kind')}:{s.get('ref')}" if s.get("ref") else str(s.get("kind")) for s in sources],
+        "partial_reason": repo.get("partial_reason") or "", "os": repo.get("os") or "",
+        "endpoints": [], "schemas": [], "endpoint_count": int(repo.get("endpoint_count") or 0),
+        "schema_count": 0, "contract_evidence_complete": not repo.get("partial_reason"),
+        "content_digest": repo.get("content_digest") or "",
+    }
+
+
+async def _code_maps(ctx) -> list[dict]:
+    """Every repo the vault's code catalog holds, as maps (its graph fetched alongside). Fail-soft: []."""
+    try:
+        api = memory_api(ctx)
+        repos = [r for r in ((await api.code_repos()) or {}).get("repos") or []
+                 if isinstance(r, dict) and r.get("repo_key")]
+        graphs = await asyncio.gather(*(api.code_graph(r["repo_key"], 400) for r in repos), return_exceptions=True)
+    except Exception:
+        log.warning("code catalog read failed (fail-soft: the JSON maps only)", exc_info=True)
+        return []
+    return [_graph_map(r, g if isinstance(g, dict) else None) for r, g in zip(repos, graphs)]
+
+
+async def _all_indexes(ctx, repos: list[dict]) -> list[dict]:
+    """The vault graph of every synced repo, then the old JSON map of each repo not synced yet (it
+    stays readable; nothing new writes it), freshest first."""
+    synced = await _code_maps(ctx)
+    have = {d["_repo_key"] for d in synced}
+    out = synced + [d for d in _indexes(repos) if d.get("_repo_key") not in have]
+    out.sort(key=lambda d: ts(d.get("updated_at")), reverse=True)
+    return out
+
+
 async def load_indexes(ctx) -> list[dict]:
-    """Every code-index map for this user, freshest first. Fail-soft: []."""
-    return _indexes(await _repo_list(ctx))
+    """Every code-index map for this user, freshest first: the vault's code graph for synced repos,
+    the JSON map for the rest. Fail-soft: []."""
+    return await _all_indexes(ctx, await _repo_list(ctx))
 
 
 async def load_memories(ctx) -> list[dict]:
@@ -186,7 +242,7 @@ async def load_memories(ctx) -> list[dict]:
 async def load_repo_memory(ctx) -> tuple[list[dict], list[dict]]:
     """(indexes, memories) from ONE listing — for callers that need both."""
     repos = await _repo_list(ctx)
-    return _indexes(repos), await _memories(ctx, repos)
+    return await _all_indexes(ctx, repos), await _memories(ctx, repos)
 
 
 def matches(d: dict, want: str) -> bool:

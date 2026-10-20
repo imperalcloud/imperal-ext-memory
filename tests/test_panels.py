@@ -288,3 +288,43 @@ def test_only_one_center_panel_is_registered():
         f"expected exactly one center panel ('memory'), got {centers} — "
         "a second slot='center' panel silently blanks whichever loses the slot"
     )
+
+
+# ── synced repos: the vault's code catalog and graph ──
+
+def _code(monkeypatch, repos, graphs):
+    from tests import conftest
+
+    async def code_repos(self):
+        return {"repos": repos, "machines": []}
+
+    async def code_graph(self, repo_key, limit=2000):
+        return graphs.get(repo_key) or {}
+    monkeypatch.setattr(conftest.FakeMemoryClient, "code_repos", code_repos, raising=False)
+    monkeypatch.setattr(conftest.FakeMemoryClient, "code_graph", code_graph, raising=False)
+
+
+SYNCED = [{"repo_key": "rk1", "root_path": "/home/ipw-repo", "files": 3, "defs": 4, "links": 5,
+           "synced_at": 1787000000, "machine_label": "whm-jump", "sources": [{"kind": "panel_ssh", "ref": "c1"}],
+           "partial_reason": "2 files over 1 MB", "git_ref": "abc", "git_branch": "master"}]
+GRAPH = {"rk1": {"files": [{"path": "core/a.py", "lang": "python", "lines": 10},
+                           {"path": "core/b.py", "lang": "python", "lines": 5}],
+                 "defs": [{"path": "core/a.py", "qualname": "effect_of", "kind": "function", "start_line": 3},
+                          {"path": "core/b.py", "qualname": "Graph", "kind": "class", "start_line": 1}],
+                 "links": []}}
+
+
+@pytest.mark.asyncio
+async def test_the_overview_shows_the_machine_sources_freshness_counts_and_partial(monkeypatch, make_ctx):
+    _code(monkeypatch, SYNCED, GRAPH)
+    import panels_repos
+    out = tree(await panels_repos.repos_panel(make_ctx("imp_u_TEST")))
+    assert "ipw-repo" in out and "whm-jump via panel_ssh" in out and "3 files · 4 defs · 5 links" in out
+    assert "synced" in out and "partial: 2 files over 1 MB" in out
+
+
+@pytest.mark.asyncio
+async def test_a_synced_repo_s_graph_is_built_from_the_vault_graph(monkeypatch, make_ctx):
+    _code(monkeypatch, SYNCED, GRAPH)
+    out = tree(await panels.memory_panel(make_ctx("imp_u_TEST"), repo="rk1"))
+    assert "type='Graph'" in out and "effect_of" in out and "core/a.py" in out

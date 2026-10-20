@@ -48,6 +48,40 @@ class MemoryClient(GatewayClient):
                                 params={"repo_key": require(repo_key, "repo_key")},
                                 resource="memory")
 
+    # ── the code graph in the vault (gateway /v1/memory/code/*) ─────────────
+
+    async def code_repos(self) -> dict:
+        """``{"repos": [...], "machines": [...]}`` -- the code catalog: each synced repository
+        (root, machine, sources, freshness, counts, partial reason) and the machines."""
+        return await self._call("GET", f"{_BASE}/code/repos", resource="memory")
+
+    async def code_search(self, repo_key: str, q: str, k: int = 20, kind: str | None = None,
+                          path_glob: str | None = None) -> dict:
+        """Definitions and files of one repo matching ``q`` (BM25)."""
+        params = {"repo_key": require(repo_key, "repo_key"), "q": q, "k": k}
+        if kind:
+            params["kind"] = kind
+        if path_glob:
+            params["path_glob"] = path_glob
+        return await self._call("GET", f"{_BASE}/code/search", params=params, resource="memory")
+
+    async def code_impact(self, repo_key: str, symbols: list | None = None, paths: list | None = None,
+                          depth: int = 2) -> dict:
+        """What depends on the given symbols / paths of one repo."""
+        return await self._call("POST", f"{_BASE}/code/impact",
+                                json={"repo_key": require(repo_key, "repo_key"), "symbols": list(symbols or []),
+                                      "paths": list(paths or []), "depth": depth}, resource="memory")
+
+    async def code_graph(self, repo_key: str, limit: int = 2000) -> dict:
+        """One repo's files, definitions and links (bounded)."""
+        return await self._call("GET", f"{_BASE}/code/graph",
+                                params={"repo_key": require(repo_key, "repo_key"), "limit": limit},
+                                resource="memory")
+
+    async def code_contracts(self) -> dict:
+        """The contract graph across the user's repos: endpoints, schemas, route links."""
+        return await self._call("GET", f"{_BASE}/code/contracts", resource="memory")
+
     async def facts(self) -> dict:
         """``{"facts": [...]}`` — every fact and directive of the acting user."""
         return await self._call("GET", f"{_BASE}/facts", resource="memory")

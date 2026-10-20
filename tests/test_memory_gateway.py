@@ -172,3 +172,25 @@ def test_no_module_touches_redis():
     hits = [str(p.relative_to(root)) for p in root.rglob("*.py")
             if p.name != pathlib.Path(__file__).name and pattern.search(p.read_text())]
     assert hits == []
+
+
+# ── the code graph in the vault (gateway /v1/memory/code/*) ──
+
+@pytest.mark.asyncio
+async def test_code_reads_go_through_the_gateway_as_the_acting_user(gw):
+    calls, routes = gw
+    routes[("GET", "/v1/memory/code/repos")] = httpx.Response(200, json={"repos": [{"repo_key": "r1"}], "machines": []})
+    routes[("GET", "/v1/memory/code/search")] = httpx.Response(200, json={"data": {"items": []}, "semantic": "off"})
+    routes[("POST", "/v1/memory/code/impact")] = httpx.Response(200, json={"data": {"items": []}})
+    routes[("GET", "/v1/memory/code/graph")] = httpx.Response(200, json={"files": []})
+    routes[("GET", "/v1/memory/code/contracts")] = httpx.Response(200, json={"links": []})
+    c = _client()
+    assert (await c.code_repos())["repos"] == [{"repo_key": "r1"}]
+    await c.code_search("r1", "cancel", path_glob="*.py")
+    assert calls[-1].url.params["q"] == "cancel" and calls[-1].url.params["path_glob"] == "*.py"
+    await c.code_impact("r1", symbols=["a"])
+    assert json.loads(calls[-1].content) == {"repo_key": "r1", "symbols": ["a"], "paths": [], "depth": 2}
+    await c.code_graph("r1", limit=50)
+    assert calls[-1].url.params["limit"] == "50"
+    await c.code_contracts()
+    assert all(r.headers["X-Acting-User"] == "imp_u_OWNER00000" and "user_id" not in r.url.params for r in calls)

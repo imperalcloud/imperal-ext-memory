@@ -1,15 +1,23 @@
 """Memory & Index · Account-scoped cross-repository endpoint/schema evidence graph.
 
-Reads the SAME content-addressed Git-source projection persisted by Webbee Code
-for every surface — the code-index maps this app already loads from the vault. Runtime/deployment observations are intentionally not mixed
-into this graph: they require their own evidence origin and freshness contract.
+Reads the vault's code catalog (gateway ``/v1/memory/code/contracts``: the endpoints each synced
+repo provides and the route links between repos, measured from the code) and, for repos not
+synced yet, the code-index maps this app already loads from the vault. Runtime/deployment
+observations are intentionally not mixed into this graph: they require their own evidence origin
+and freshness contract.
 """
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+import logging
+
 from app import ActionResult, _user_id, age, chat, load_indexes, matches
+from memory_client import memory_api
 from models import CrossRepoContractGraphRecord
+
+
+log = logging.getLogger("memory-index")
 
 
 class ContractGraphParam(BaseModel):
@@ -98,6 +106,40 @@ def _graph(maps: list[dict], params: ContractGraphParam) -> dict:
             "freshness": freshness}
 
 
+def _with_contracts(maps: list[dict], contracts: dict, params: ContractGraphParam) -> dict:
+    """The graph of the maps, the synced repos' endpoints and schemas from the vault catalog put into
+    their maps, and the catalog's route links (a repo calling a route another repo provides)."""
+    by_key = {str(d.get("_repo_key")): d for d in maps}
+    for e in contracts.get("endpoints") or []:
+        d = by_key.get(str(e.get("repo_key") or ""))
+        if d is not None and d.get("_synced"):
+            d.setdefault("endpoints", []).append({
+                "method": e.get("method") or str(e.get("key") or "").split(" ", 1)[0],
+                "route": e.get("route") or str(e.get("key") or "").partition(" ")[2],
+                "handler": e.get("handler") or "", "path": e.get("path") or "", "line": int(e.get("line") or 0),
+                "schema_refs": [str(x) for x in e.get("schema_refs") or []]})
+    for sc in contracts.get("schemas") or []:
+        d = by_key.get(str(sc.get("repo_key") or ""))
+        if d is not None and d.get("_synced"):
+            d.setdefault("schemas", []).append({
+                "name": sc.get("name") or sc.get("key") or sc.get("title") or "", "schema_kind": "",
+                "path": sc.get("path") or "", "line": int(sc.get("line") or 0), "fields": []})
+    data = _graph(maps, params)
+    want_repo = (params.repo or "").strip().lower()
+    query = (params.query or "").strip().lower()
+    route_links = [{"relation": "route_use", "source_repo": str(x.get("from_repo") or ""),
+                    "target_repo": str(x.get("to_repo") or ""), "identity": str(x.get("key") or "")}
+                   for x in contracts.get("links") or [] if isinstance(x, dict)]
+    route_links = [x for x in route_links if (not query or query in x["identity"].lower())
+                   and (not want_repo or any(want_repo in r.lower() for r in (x["source_repo"], x["target_repo"])))]
+    if (params.kind or "all") in ("all", "link"):
+        limit = max(1, min(int(params.limit or 100), 200))
+        data["links"] = sorted(data["links"] + route_links,
+                               key=lambda x: (x["relation"], x["identity"], x["source_repo"], x["target_repo"]))[:limit]
+    data["link_count"] += len(route_links)
+    return data
+
+
 @chat.function(
     "get_cross_repo_contract_graph", action_type="read", data_model=CrossRepoContractGraphRecord,
     description=("Read the authenticated user's cross-repository HTTP endpoint and schema graph: "
@@ -115,7 +157,12 @@ async def fn_get_cross_repo_contract_graph(ctx, params: ContractGraphParam) -> A
     if not _user_id(ctx):
         return ActionResult.error("Could not identify the calling user.")
     maps = await load_indexes(ctx)
-    data = _graph(maps, params)
+    try:
+        contracts = await memory_api(ctx).code_contracts() or {}
+    except Exception:
+        log.warning("code contracts read failed (fail-soft: the JSON maps only)", exc_info=True)
+        contracts = {}
+    data = _with_contracts(maps, contracts, params)
     if not maps:
         summary = "No code index yet. Open repositories in Webbee Code to build the account graph."
     else:
