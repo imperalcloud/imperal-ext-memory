@@ -93,6 +93,14 @@ def tokenize(text: str) -> list[str]:
     return [w for w in words if len(w) >= 2 and w not in _STOPWORDS]
 
 
+def citation_text(c) -> str:
+    """A note's citation as text: the kernel's distiller writes ``{"path", "symbol"}``, a person a string."""
+    if isinstance(c, dict):
+        path, sym = str(c.get("path") or "").strip(), str(c.get("symbol") or "").strip()
+        return f"{path}:{sym}" if path and sym else (path or sym)
+    return str(c or "").strip()
+
+
 def score_text_relevance(query_tokens: list[str], target_text: str, tags: list[str] | None = None) -> float:
     """Compute relevance score between query tokens and target text + tags.
 
@@ -107,7 +115,7 @@ def score_text_relevance(query_tokens: list[str], target_text: str, tags: list[s
 
     score = 0.0
     text_lower = target_text.lower()
-    tag_set = {t.lower() for t in (tags or [])}
+    tag_set = {citation_text(t).lower() for t in (tags or [])}
 
     for qt in query_tokens:
         # Exact substring occurrence boost

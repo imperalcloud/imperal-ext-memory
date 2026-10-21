@@ -20,7 +20,7 @@ from app import (
 )
 from models_user_mem import ContextRecallRecord, ContextSnippet
 from proof_of_done import evaluate_task_resolution
-from storage_user_mem import load_user_memory, score_text_relevance, tokenize
+from storage_user_mem import citation_text, load_user_memory, score_text_relevance, tokenize
 
 log = logging.getLogger("memory-index.recall")
 
@@ -136,7 +136,7 @@ async def fn_recall_context(ctx, params: RecallContextParams) -> ActionResult:
                     if not isinstance(e, dict):
                         continue
                     note_text = e.get("note", "")
-                    cites = e.get("citations") or []
+                    cites = [t for t in (citation_text(c) for c in e.get("citations") or []) if t]
                     score = score_text_relevance(query_tokens, note_text, cites)
 
                     if score >= MIN_RELEVANCE_FLOOR:

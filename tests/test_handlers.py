@@ -249,3 +249,12 @@ async def test_gateway_outage_is_fail_soft(monkeypatch, make_ctx):
     res = await h.fn_list_repos(make_ctx("imp_u_TEST"), h.EmptyParams())
     assert res.status == "success"  # fail-soft: empty inventory, not an exception
     assert res.data == [] or not res.data
+
+
+def test_a_distilled_note_with_path_citations_is_recalled():
+    """The kernel's distiller writes citations as {"path", "symbol"}; recall did .lower() on them and lost
+    every repo note ("Repo memory recall failed: 'dict' object has no attribute 'lower'", live 2026-10-21)."""
+    from storage_user_mem import citation_text, score_text_relevance, tokenize
+    cites = [{"path": "app/billing/service.py", "symbol": "charge"}, {"path": "app/x.py", "symbol": ""}, "notes.md"]
+    assert [citation_text(c) for c in cites] == ["app/billing/service.py:charge", "app/x.py", "notes.md"]
+    assert score_text_relevance(tokenize("billing charge"), "billing retries twice", cites) > 0

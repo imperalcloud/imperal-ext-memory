@@ -16,6 +16,7 @@ from app import (
     load_memories,
     pick,
 )
+from storage_user_mem import citation_text
 
 
 class EmptyParams(BaseModel):
@@ -76,7 +77,7 @@ def _notes_payload(repo_key: str, entries: list) -> list[dict]:
             continue
         out.append({
             "note": str(e.get("note") or ""),
-            "citations": e.get("citations") or [],
+            "citations": [t for t in (citation_text(c) for c in e.get("citations") or []) if t],
             "repo_key": repo_key,
             "distilled_at": e.get("distilled_at"),
             "distilled_git_ref": e.get("distilled_git_ref"),
