@@ -2,7 +2,7 @@
   "manifest_schema_version": 3,
   "sdk_version": "6.0.1",
   "app_id": "memory-index",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "name": "Memory & Index",
   "description": "See and edit what Webbee remembers about your code — the code index (files, languages, symbols, commit) and the durable notes distilled while coding — and everything else Webbee holds about you (working memory, plans, conclusions, saved outputs, conversations), with one verified way to forget any of it.",
   "icon": "icon.svg",

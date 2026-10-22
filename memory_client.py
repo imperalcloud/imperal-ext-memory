@@ -14,6 +14,9 @@ from __future__ import annotations
 from imperal_sdk._gateway import GatewayClient, require
 
 _BASE = "/v1/memory"
+# A forget walks every row of a place; the largest repo measured (205k rows, 2026-10-23) takes
+# ~14 s -- at the SDK's 15 s default. The gateway waits up to 120 s for it, so this side does too.
+_FORGET_TIMEOUT_S = 120.0
 
 
 class MemoryClient(GatewayClient):
@@ -45,7 +48,7 @@ class MemoryClient(GatewayClient):
         "forgotten", "left", ...}``."""
         return await self._call("DELETE", f"{_BASE}/repo",
                                 params={"repo_key": require(repo_key, "repo_key")},
-                                resource="memory")
+                                resource="memory", timeout=_FORGET_TIMEOUT_S)
 
     async def index(self, repo_key: str) -> dict:
         """``{"repo_key": ..., "map": {...} | None}`` — one repo's code index."""
@@ -118,7 +121,7 @@ class MemoryClient(GatewayClient):
         return await self._call("POST", f"{_BASE}/forget",
                                 json={"what": require(what, "what"), "key": key or "",
                                       "project_id": project_id or ""},
-                                resource="memory")
+                                resource="memory", timeout=_FORGET_TIMEOUT_S)
 
 
 def memory_api(ctx) -> MemoryClient:

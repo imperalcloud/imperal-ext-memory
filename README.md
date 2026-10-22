@@ -7,7 +7,7 @@ plans, conclusions, saved command outputs, conversations, the context graph.
 See every detail as stored, correct the notes when Webbee learned something
 wrong, and forget any part of it through one verified delete.
 
-`app_id: memory-index` · v1.3.0 · system extension · capabilities `memory:read`, `memory:write`
+`app_id: memory-index` · v1.3.1 · system extension · capabilities `memory:read`, `memory:write`
 
 ---
 
