@@ -127,9 +127,13 @@ def erase_repo_modal(repo_key: str, label: str, entries: list,
         content=ui.Stack(direction="v", gap=2, children=[
             _back_button(repo_key, "← Back to repo"),
             ui.Text(content=(
-                f"This erases {index_line} and {note_line} — this repository's "
-                f"whole vault file. Afterwards your repos are listed afresh to "
-                f"confirm nothing is left.")),
+                f"This erases {index_line}, {note_line} and everything else "
+                f"Webbee holds for this repository — working memory, plans, "
+                f"conclusions, saved command outputs, terminal conversations, "
+                f"session snapshots and context graph — through the vault's one "
+                f"forget door. A running Webbee session on it is stopped first. "
+                f"Afterwards your whole memory is read again to confirm nothing "
+                f"is left.")),
             ui.Alert(type="warning", message=(
                 "The notes cannot be recovered — they are judgement distilled "
                 "over time, not something re-derivable from your files. The "

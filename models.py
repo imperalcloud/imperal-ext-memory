@@ -161,12 +161,13 @@ class NoteOpRecord(sdl.Entity):
 class PurgeRecord(sdl.Entity):
     """Outcome of erasing ONE repo's memory — a verified fact, not an intent.
 
-    ``deleted`` is what the vault said about its own delete; ``still_listed``
-    is the result of a fresh listing performed AFTER it, and ``verified`` is
-    its negation. They are modelled as first-class fields precisely so the
-    answer cannot claim a clean wipe while something remains: if the
-    re-listing still shows the repo, the record says so and the narrator has
-    to report it.
+    ``deleted`` is what the vault said about its own delete and ``forgotten``
+    what it removed per section; ``still_listed`` is the result of a fresh read
+    of the WHOLE memory performed AFTER it, ``left`` what that read (or the
+    vault) still shows, and ``verified`` is true only when nothing is left.
+    They are modelled as first-class fields precisely so the answer cannot
+    claim a clean wipe while something remains: if the re-read still shows the
+    repo, the record says so and the narrator has to report it.
     """
 
     repo_key: Optional[str] = None
@@ -175,6 +176,9 @@ class PurgeRecord(sdl.Entity):
     had_notes: Optional[bool] = None
     notes_removed: Optional[int] = None
     deleted: Optional[bool] = None
+    forgotten: Optional[dict] = None
+    records_removed: Optional[int] = None
+    left: Optional[dict] = None
     still_listed: Optional[bool] = None
     verified: Optional[bool] = None
 

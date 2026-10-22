@@ -80,6 +80,19 @@ async def fn_explain_memory(ctx, params: EmptyParams) -> ActionResult:
             "why_not_editable": "Derived data — regenerated from your files.",
             "your_count": sum(d.get("embedded_chunks") or 0 for d in indexes),
         },
+        {
+            "name": "Everything else",
+            "where": ("Tenant Vault, other sections — working memory, goals and plans, "
+                      "proven conclusions, saved command outputs, conversations, session "
+                      "snapshots, rules, context graph, extension data"),
+            "holds": "What Webbee carries between turns and sessions, per repo and for the account.",
+            "written_by": "Webbee while it works (kernel and terminal agent).",
+            "updates": "Continuously; kept until forgotten.",
+            "editable": False,
+            "why_not_editable": ("Shown in full by memory_overview; removed only through "
+                                 "forget_memory / delete_repo, verified by a fresh re-read."),
+            "your_count": None,
+        },
     ]
 
     data = {
@@ -104,5 +117,7 @@ async def fn_explain_memory(ctx, params: EmptyParams) -> ActionResult:
                  f"• Code index — rebuilt from your files each indexing pass (read-only)\n"
                  f"• Durable notes — distilled after coding turns, newest {MAX_ENTRIES} per "
                  f"repo, no expiry (editable)\n"
-                 f"• Semantic chunks — regenerated with the index (read-only)"
+                 f"• Semantic chunks — regenerated with the index (read-only)\n"
+                 f"• Everything else (working memory, plans, conclusions, outputs, "
+                 f"conversations, graph) — see memory_overview; forget_memory removes it"
                  + orphan_line))

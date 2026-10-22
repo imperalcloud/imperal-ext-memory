@@ -1,10 +1,19 @@
-"""Memory & Index · Shared state — read/edit Webbee's per-repo brain.
+"""Memory & Index · Shared state — read/edit Webbee's memory of the user.
 
-This extension is the USER-FACING window into one kernel-written Tenant Vault
-file per repository, ``repos/<repo_key>``, holding two things:
+This extension is the USER-FACING window into everything Webbee keeps about a
+person in the Tenant Vault. Per repository that is far more than one file:
 
-  code index      structural code map (kernel-written)
+  code index      structural code map (kernel-written), read-only here
   durable notes   distilled notes (kernel-written), kept with no expiry
+  and also        working memory, goals and plans, proven conclusions, saved
+                  command outputs, terminal conversations, session snapshots,
+                  context-graph events — plus account-level rules,
+                  conversations and extension data
+
+All of it is SHOWN as stored (``GET /v1/memory/all``), and every deletion goes
+through the vault's one forget door (``POST /v1/memory/forget``), which deletes
+across all sections and reports anything left; this app then re-reads the
+whole memory to confirm it. Nothing is hidden and nothing is auto-deleted.
 
 It reaches the vault only through the gateway's owner-scoped ``/v1/memory``
 (see memory_client.py) and keeps no state or cache of its own.
@@ -45,7 +54,7 @@ MAX_ENTRIES = 40                        # core.repo_memory.MAX_ENTRIES
 NOTE_CHARS = 400                        # core.repo_memory._NOTE_CHARS
 
 ext = Extension(
-    "memory-index", version="1.2.1",
+    "memory-index", version="1.3.0",
     # Federal-rigor scope surface (I-SCOPES-DECLARED-NOT-WILDCARD): this app
     # reads the caller's own code index and edits the caller's own durable
     # notes — declare exactly that, never a wildcard, for a system app that
@@ -55,8 +64,9 @@ ext = Extension(
     description=(
         "See and edit what Webbee remembers about your code — the code index "
         "(files, languages, symbols, commit) and the durable notes distilled "
-        "while coding, with a plain explanation of where each piece is stored "
-        "and when it updates."
+        "while coding — and everything else Webbee holds about you (working "
+        "memory, plans, conclusions, saved outputs, conversations), with one "
+        "verified way to forget any of it."
     ),
     icon="icon.svg",
     actions_explicit=True,
@@ -84,6 +94,11 @@ chat = ChatExtension(
         "one repo. add_note / edit_note / delete_note change notes only — "
         "always echo back what changed. explain_memory answers 'where is this "
         "actually stored and when does it update' with live numbers.\n\n"
+        "memory_overview lists EVERYTHING Webbee holds (account and every repo, "
+        "including memory left over from repos whose index was deleted); "
+        "forget_memory deletes one place / conversation / rule / app's data / "
+        "everything through the vault's one forget door and confirms by a fresh "
+        "re-read that nothing is left. Never guess what to forget.\n\n"
         "Always state staleness honestly: every answer carries the commit and "
         "how long ago it was written. Never present an index as live truth."
     ),
@@ -301,40 +316,9 @@ async def save_entries(ctx, repo_key: str, entries: list,
         raise
 
 
-async def purge_repo(ctx, repo_key: str) -> dict:
-    """Delete EVERY stored trace of one repo for this user, then VERIFY.
-
-    Repo memory lives in exactly one place: the repo's Tenant Vault file
-    ``repos/<repo_key>``, which holds the notes AND the code index together.
-    ``embedded_chunks`` in the index map is a COPIED COUNT reported by the
-    terminal client, not a pointer to another store, so removing that file
-    leaves nothing.
-
-    Deliberately three phases — count, delete, re-list — because a delete
-    that only reports its own intent is not a guarantee. ``verified`` is the
-    result of a fresh listing AFTER the delete, so the caller can state truth
-    rather than hope. The listing is read directly, not through the fail-soft
-    loader: an outage there must fail the purge, not read as "gone".
-    """
-    api = memory_api(ctx)
-    note_count = len((await api.repo(repo_key) or {}).get("entries") or [])
-    had_index = isinstance((await api.index(repo_key) or {}).get("map"), dict)
-
-    deleted = bool((await api.delete_repo(repo_key) or {}).get("deleted"))
-
-    # Re-list rather than trust the delete's own return value.
-    still_listed = any(isinstance(r, dict) and r.get("repo_key") == repo_key
-                       for r in (await api.repos() or {}).get("repos") or [])
-
-    return {
-        "repo_key": repo_key,
-        "had_index": had_index,
-        "had_notes": note_count > 0,
-        "notes_removed": note_count,
-        "deleted": deleted,
-        "still_listed": still_listed,
-        "verified": not still_listed,
-    }
+# load_everything()/purge_repo() live in forget_ops.py (with the forget_memory
+# tool's forget_and_verify), re-exported here for the existing call sites.
+from forget_ops import load_everything, purge_repo  # noqa: E402,F401
 
 
 @ext.health_check

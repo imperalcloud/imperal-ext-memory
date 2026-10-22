@@ -2,9 +2,9 @@
   "manifest_schema_version": 3,
   "sdk_version": "6.0.1",
   "app_id": "memory-index",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "name": "Memory & Index",
-  "description": "See and edit what Webbee remembers about your code — the code index (files, languages, symbols, commit) and the durable notes distilled while coding, with a plain explanation of where each piece is stored and when it updates.",
+  "description": "See and edit what Webbee remembers about your code — the code index (files, languages, symbols, commit) and the durable notes distilled while coding — and everything else Webbee holds about you (working memory, plans, conclusions, saved outputs, conversations), with one verified way to forget any of it.",
   "icon": "icon.svg",
   "actions_explicit": true,
   "system": true,
@@ -1747,7 +1747,7 @@
     },
     {
       "name": "delete_repo",
-      "description": "Permanently erase EVERYTHING Webbee remembers about one repository — its code index AND all its durable notes — from storage, and verify afterwards that nothing survived. This cannot be undone: the notes are gone for good, while the code index only comes back if that repo is opened in the Webbee terminal agent again.",
+      "description": "Permanently erase EVERYTHING Webbee holds about one repository — its code index, durable notes, working memory, goals and plans, proven conclusions, saved command outputs, terminal conversations, session snapshots and context-graph events — through the vault's one forget door, and verify by a fresh read of the whole memory that nothing survived. Also erases memory left over from a repo whose index was already deleted. This cannot be undone: only the code index comes back, if that repo is opened in the Webbee terminal agent again.",
       "action_type": "destructive",
       "chain_callable": true,
       "effects": [
@@ -1770,7 +1770,7 @@
         "type": "object"
       },
       "return_schema": {
-        "description": "Outcome of erasing ONE repo's memory — a verified fact, not an intent.\n\n``deleted`` is what the vault said about its own delete; ``still_listed``\nis the result of a fresh listing performed AFTER it, and ``verified`` is\nits negation. They are modelled as first-class fields precisely so the\nanswer cannot claim a clean wipe while something remains: if the\nre-listing still shows the repo, the record says so and the narrator has\nto report it.",
+        "description": "Outcome of erasing ONE repo's memory — a verified fact, not an intent.\n\n``deleted`` is what the vault said about its own delete and ``forgotten``\nwhat it removed per section; ``still_listed`` is the result of a fresh read\nof the WHOLE memory performed AFTER it, ``left`` what that read (or the\nvault) still shows, and ``verified`` is true only when nothing is left.\nThey are modelled as first-class fields precisely so the answer cannot\nclaim a clean wipe while something remains: if the re-read still shows the\nrepo, the record says so and the narrator has to report it.",
         "properties": {
           "id": {
             "anyOf": [
@@ -1912,6 +1912,44 @@
             "default": null,
             "title": "Deleted"
           },
+          "forgotten": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Forgotten"
+          },
+          "records_removed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Records Removed"
+          },
+          "left": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Left"
+          },
           "still_listed": {
             "anyOf": [
               {
@@ -1946,6 +1984,386 @@
         "x-sdl": "entity"
       },
       "event": "repo_memory_erased",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "tool_memory_chat"
+    },
+    {
+      "name": "memory_overview",
+      "description": "Show EVERYTHING Webbee holds about the user, exactly as stored: the account (rules, conversations, conclusions, context graph, extension data) and every repository (notes, code index, working memory, plans, conclusions, saved command outputs, conversations, session snapshots) — including memory left over from repos whose code index was deleted. Gives the exact keys forget_memory takes.",
+      "action_type": "read",
+      "chain_callable": true,
+      "effects": [],
+      "id_projection": "",
+      "params_schema": {
+        "description": "No parameters needed.",
+        "properties": {},
+        "title": "EmptyParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "description": "Every place of the user's memory (account, repos, left-over repos) with\nits per-section counts — exactly as the vault reports them.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Subtitle"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          },
+          "places": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Places"
+          },
+          "place_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Place Count"
+          },
+          "orphan_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Orphan Count"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "MemoryOverviewRecord",
+        "type": "object",
+        "x-sdl": "entity"
+      },
+      "event": "",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "tool_memory_chat"
+    },
+    {
+      "name": "forget_memory",
+      "description": "Permanently forget part of what Webbee holds about the user — one repo or the account (every section of it), one conversation and what its session left, one rule, one conclusion, a reality matrix, one extension's data, a context-graph subject, or everything — through the vault's one forget door. A running Webbee session on it is stopped first. A fresh read of the whole memory afterwards confirms nothing is left. Use the exact keys memory_overview reports. Cannot be undone.",
+      "action_type": "destructive",
+      "chain_callable": true,
+      "effects": [
+        "delete:memory"
+      ],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "what": {
+            "description": "What kind of thing to forget — one of: 'place' (everything of one repo, key 'repo:<repo_key>', or of the account, key 'account'), 'conversation' (one conversation and everything its session left; key = conversation id), 'law' (one rule; key = rule/fact id), 'evidence' (one proven conclusion; key = fact id, plus project_id), 'reality' (the reality matrix of a project; key = project id, e.g. '_tenant'), 'skeleton' (one extension's data; key = app id), 'graph' (context-graph events of one subject; key = subject id), 'all' (everything Webbee holds about the user; no key). Required: deleting memory is never applied to a guessed default.",
+            "title": "What",
+            "type": "string"
+          },
+          "key": {
+            "default": "",
+            "description": "Which one — exactly as memory_overview reports it (a place like 'repo:55d6d1e4dd1f' or 'account', a conversation id, a rule id, an app id, a project id, a subject id). Required for everything except what='all'.",
+            "title": "Key",
+            "type": "string"
+          },
+          "project_id": {
+            "default": "",
+            "description": "Only for what='evidence': the project the conclusion belongs to.",
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "what"
+        ],
+        "title": "ForgetMemoryParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "description": "Outcome of one forget — what the vault removed, what a fresh read of the\nwhole memory still shows (``left``), and whether that makes it verified.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Subtitle"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          },
+          "what": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "What"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Key"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Project Id"
+          },
+          "forgotten": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Forgotten"
+          },
+          "left": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Left"
+          },
+          "stopped_sessions": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Stopped Sessions"
+          },
+          "caches_dropped": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caches Dropped"
+          },
+          "verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Verified"
+          },
+          "total_after": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total After"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "ForgetRecord",
+        "type": "object",
+        "x-sdl": "entity"
+      },
+      "event": "memory_forgotten",
       "background": false,
       "long_running": false,
       "scopes": [],
@@ -2945,7 +3363,7 @@
     },
     {
       "name": "delete_user_fact",
-      "description": "Delete a durable user fact by its fact_id.",
+      "description": "Permanently delete a durable user fact by its fact_id — the rule row is removed from the vault for real (no tombstone is kept), so Webbee never sees it again in any session.",
       "action_type": "write",
       "chain_callable": true,
       "effects": [

@@ -52,7 +52,8 @@ async def save_user_memory(ctx, facts: list[dict]) -> None:
 
 
 async def forget_user_fact(ctx, fact_id: str) -> None:
-    """Remove one fact from the Tenant Vault. RAISES on failure."""
+    """Delete one fact's rule row from the Tenant Vault for real (no tombstone).
+    RAISES on failure, including 404 when it does not exist."""
     await memory_api(ctx).delete_fact(fact_id)
 
 

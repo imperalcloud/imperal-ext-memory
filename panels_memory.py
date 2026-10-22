@@ -7,6 +7,9 @@ selected by view state:
     (nothing)              → overview: every repo, as openable cards
     repo=<key>             → that repo in full: graph, charts, index, notes
     section=storage        → the storage explainer
+    section=everything     → everything Webbee holds (account, repos, left-over
+                             memory of deleted repos), each with its forget;
+                             & fwhat/fkey/token → forget confirmation ON TOP
     repo=… & confirm=1     → erase-repo confirmation, layered ON TOP
     repo=… & forget=N      → forget-note confirmation, layered ON TOP
 
@@ -32,8 +35,9 @@ import logging
 
 from imperal_sdk import ui
 
-from app import _user_id, ext, load_repo_memory, pick, repo_name
+from app import _user_id, ext, load_everything, load_repo_memory, pick, repo_name
 from panels_cards import _index_card, _notes_card
+from panels_everything import everything_body, place_card
 from panels_common import _back, _empty, _err, _nav
 from panels_focus import focus_card, resolve_node
 from panels_modals import erase_repo_modal, forget_note_modal, token_matches
@@ -46,6 +50,7 @@ from panels_user_mem import (
     delete_user_fact_modal,
     fact_token,
 )
+from memory_places import find_place
 from storage_user_mem import load_user_memory
 
 log = logging.getLogger("memory-index")
@@ -84,6 +89,10 @@ async def memory_panel(ctx, **kwargs):
         return ui.Stack(direction="v", gap=2, children=[
             _back("Back to all repos", _nav()), body])
 
+    # ── Everything Webbee holds ─────────────────────────────────────────────
+    if section == "everything":
+        return everything_body(await load_everything(ctx), kwargs)
+
     # ── User & Workspace Memory ─────────────────────────────────────────────
     if section == "user_memory":
         user_mem = await load_user_memory(ctx, uid)
@@ -121,6 +130,12 @@ async def memory_panel(ctx, **kwargs):
     idx = pick(indexes, want)
     mem = pick(memories, want)
     if idx is None and mem is None:
+        # Memory left over from a repo whose index is gone is still memory:
+        # show it as its place, never as "nothing stored".
+        left = find_place(await load_everything(ctx), f"repo:{want}")
+        if left is not None:
+            return ui.Stack(direction="v", gap=2, children=[
+                _back("Back to all repos", _nav()), place_card(left)])
         # Also the state right after a successful erase: the repo is genuinely
         # gone, so this is the honest view rather than a stale modal.
         return ui.Stack(direction="v", gap=2, children=[
@@ -173,8 +188,9 @@ async def memory_panel(ctx, **kwargs):
         title="Danger zone",
         content=ui.Stack(direction="v", gap=1, children=[
             ui.Text(content="Erase this repository from Webbee's memory — the code "
-                            "index and every durable note, with nothing left in "
-                            "storage."),
+                            "index, every durable note, its working memory, plans, "
+                            "conclusions, saved outputs, terminal conversations and "
+                            "context graph, with nothing left in storage."),
             ui.Button(label="Erase this repo's memory", variant="danger",
                       icon="Trash2",
                       on_click=_nav(repo=repo_key, confirm="1")),

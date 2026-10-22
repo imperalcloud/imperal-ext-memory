@@ -4,7 +4,7 @@ Tools:
 - list_user_facts: list all durable user preferences, directives, infra facts
 - add_user_fact: remember a durable fact about user or workspace
 - edit_user_fact: modify an existing user fact
-- delete_user_fact: remove a fact by ID
+- delete_user_fact: delete a fact by ID (a real delete of its rule row, not a tombstone)
 - reconcile_directives: evaluate Proof-of-Done and retire resolved task directives
 """
 from __future__ import annotations
@@ -230,10 +230,12 @@ async def fn_edit_user_fact(ctx, params: EditUserFactParams) -> ActionResult:
     data_model=UserFactOpRecord,
     effects=["delete:user_fact"],
     event="user_fact_deleted",
-    description="Delete a durable user fact by its fact_id.",
+    description=("Permanently delete a durable user fact by its fact_id — the rule row "
+                 "is removed from the vault for real (no tombstone is kept), so Webbee "
+                 "never sees it again in any session."),
 )
 async def fn_delete_user_fact(ctx, params: DeleteUserFactParams) -> ActionResult:
-    """Delete a durable user fact by its fact_id."""
+    """Delete a durable user fact by its fact_id — the vault removes the row itself."""
     uid = _user_id(ctx)
     if not uid:
         return ActionResult.error("Could not identify the calling user.")
@@ -259,5 +261,5 @@ async def fn_delete_user_fact(ctx, params: DeleteUserFactParams) -> ActionResult
             "action": "deleted",
             "total_facts": len(surviving),
         }),
-        summary=f"Deleted user memory fact '{target_id}'.",
+        summary=f"Deleted user memory fact '{target_id}' — the rule is removed from storage, not just hidden.",
     )

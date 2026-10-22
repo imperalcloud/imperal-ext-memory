@@ -39,7 +39,7 @@ async def test_delete_repo_removes_index_and_notes(gateway, make_ctx,
 @pytest.mark.asyncio
 async def test_delete_repo_verifies_with_a_fresh_listing(gateway, make_ctx,
                                                          seed_index, seed_memory):
-    """``verified`` must come from a listing taken AFTER the delete."""
+    """``verified`` must come from a read of the WHOLE memory taken AFTER the delete."""
     seed_index("imp_u_TEST", "abc123")
     seed_memory("imp_u_TEST", "abc123", ["a fact"])
 
@@ -47,8 +47,8 @@ async def test_delete_repo_verifies_with_a_fresh_listing(gateway, make_ctx,
 
     methods = [m for _, m, _ in gateway.calls]
     assert "delete_repo" in methods
-    assert "repos" in methods[methods.index("delete_repo") + 1:], (
-        "no listing after the delete — the result would only be the delete's own claim")
+    assert "everything" in methods[methods.index("delete_repo") + 1:], (
+        "no re-read after the delete — the result would only be the delete's own claim")
 
 
 @pytest.mark.asyncio
@@ -155,21 +155,19 @@ async def test_delete_repo_reports_a_survivor_instead_of_claiming_success(
 @pytest.mark.asyncio
 async def test_delete_repo_listing_outage_is_not_read_as_gone(
         gateway, make_ctx, seed_index, monkeypatch):
-    """The verification listing must not fail soft into 'nothing listed'."""
+    """The verification re-read must not fail soft into 'nothing listed'."""
     seed_index("imp_u_TEST", "abc123")
     ctx = make_ctx("imp_u_TEST")
 
     from tests.conftest import FakeMemoryClient
-    real_repos = FakeMemoryClient.repos
-    seen = []
+    real_everything = FakeMemoryClient.everything
 
-    async def _down_after_first(self):
-        seen.append(1)
-        if len(seen) > 1:
+    async def _down_after_the_delete(self):
+        if any(m == "delete_repo" for _, m, _ in gateway.calls):
             raise ConnectionError("gateway down")
-        return await real_repos(self)
+        return await real_everything(self)
 
-    monkeypatch.setattr(FakeMemoryClient, "repos", _down_after_first)
+    monkeypatch.setattr(FakeMemoryClient, "everything", _down_after_the_delete)
 
     res = await h.fn_delete_repo(ctx, h.DeleteRepoParams(repo="abc123"))
     assert res.status == "error"

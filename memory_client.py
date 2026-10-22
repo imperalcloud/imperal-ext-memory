@@ -1,7 +1,10 @@
 """``/v1/memory`` — the acting user's durable memory, through the gateway.
 
-What Webbee remembers (per-repo notes and code index, facts and directives)
-lives in the Tenant Vault. This app reaches it only through the gateway's
+What Webbee remembers lives in the Tenant Vault, in many sections: per-repo
+notes and code index, rules (facts and directives), working memory, plans,
+conclusions, saved command outputs, conversations, session snapshots, the
+context graph and extension data. ``everything()`` lists all of it and
+``forget()`` is the vault's one door for deleting any of it. This app reaches it only through the gateway's
 owner-scoped namespace: the gateway resolves the user from ``X-Acting-User``
 and accepts no user_id, so this app cannot read or write anybody else's
 memory — and it never holds the vault's address or token.
@@ -37,7 +40,9 @@ class MemoryClient(GatewayClient):
                                 resource="memory")
 
     async def delete_repo(self, repo_key: str) -> dict:
-        """Remove one repo's whole vault file — notes AND code index."""
+        """Forget everything of one repo in every section (the same as
+        ``forget("place", "repo:<key>")``): ``{"repo_key", "deleted", "ok",
+        "forgotten", "left", ...}``."""
         return await self._call("DELETE", f"{_BASE}/repo",
                                 params={"repo_key": require(repo_key, "repo_key")},
                                 resource="memory")
@@ -92,8 +97,27 @@ class MemoryClient(GatewayClient):
                                 resource="memory")
 
     async def delete_fact(self, fact_id: str) -> dict:
-        """Forget one fact (a 404 when there is no such fact)."""
+        """Delete one rule row for real (a 404 when there is no such fact)."""
         return await self._call("DELETE", f"{_BASE}/facts/{require(fact_id, 'fact_id')}",
+                                resource="memory")
+
+    # ── the whole memory (gateway /v1/memory/all and /v1/memory/forget) ─────
+
+    async def everything(self) -> dict:
+        """``{"places": [...], "total": n}`` -- every place of the user's memory
+        (``account`` and one ``repo:<key>`` per repo, orphans included) with
+        non-zero counts per section, its conversations and extension data."""
+        return await self._call("GET", f"{_BASE}/all", resource="memory")
+
+    async def forget(self, what: str, key: str = "", project_id: str = "") -> dict:
+        """Delete through the vault's one forget door and verify server-side.
+
+        ``what``: place | conversation | law | evidence | reality | skeleton |
+        graph | all. 200 ``{"ok", "forgotten", "left": {}, ...}``; a 409
+        (APIError) when anything was left behind."""
+        return await self._call("POST", f"{_BASE}/forget",
+                                json={"what": require(what, "what"), "key": key or "",
+                                      "project_id": project_id or ""},
                                 resource="memory")
 
 

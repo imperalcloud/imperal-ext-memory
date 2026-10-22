@@ -20,8 +20,10 @@ from panels_common import _err, _nav
 
 log = logging.getLogger("memory-index")
 
-# Where both stores live: ONE Tenant Vault file per repo holds the code index
-# and the durable notes together (see memory_client.py / app.purge_repo).
+# Where these two stores live: ONE Tenant Vault file per repo holds the code
+# index and the durable notes together. Everything ELSE a repo leaves (working
+# memory, plans, conclusions, …) is in other vault sections — card 4 below, and
+# forget_ops.purge_repo, which erases all of it.
 _VAULT_FILE = "Tenant Vault, repos/{repo key} — one file per repo"
 
 
@@ -90,6 +92,18 @@ async def storage_body(ctx, back_repo: str = ""):
                         {"key": "Your chunks",
                          "value": str(sum(d.get("embedded_chunks") or 0 for d in indexes))},
                     ]),
+                ])),
+        ui.Card(title="4. Everything else Webbee holds",
+                content=ui.Stack(direction="v", gap=1, children=[
+                    ui.Text(content=(
+                        "Besides the index and the notes, the vault keeps working memory, "
+                        "goals and plans, proven conclusions, saved command outputs, "
+                        "conversations, session snapshots, rules, the context graph and "
+                        "extension data — per repo and for your account. All of it is "
+                        "shown, as stored, under 'Everything Webbee holds', and every delete "
+                        "goes through one forget door and is checked by reading it all again.")),
+                    ui.Button(label="Everything Webbee holds", variant="secondary", size="sm",
+                              icon="Database", on_click=_nav(section="everything")),
                 ])),
     ]
 

@@ -65,6 +65,29 @@ class DeleteRepoParams(BaseModel):
                      "recent would be a coin flip with the user's memory."))
 
 
+class ForgetMemoryParams(BaseModel):
+    what: str = Field(
+        description=("What kind of thing to forget — one of: 'place' (everything of one "
+                     "repo, key 'repo:<repo_key>', or of the account, key 'account'), "
+                     "'conversation' (one conversation and everything its session left; "
+                     "key = conversation id), 'law' (one rule; key = rule/fact id), "
+                     "'evidence' (one proven conclusion; key = fact id, plus project_id), "
+                     "'reality' (the reality matrix of a project; key = project id, e.g. "
+                     "'_tenant'), 'skeleton' (one extension's data; key = app id), "
+                     "'graph' (context-graph events of one subject; key = subject id), "
+                     "'all' (everything Webbee holds about the user; no key). Required: "
+                     "deleting memory is never applied to a guessed default."))
+    key: str = Field(
+        default="",
+        description=("Which one — exactly as memory_overview reports it (a place like "
+                     "'repo:55d6d1e4dd1f' or 'account', a conversation id, a rule id, an "
+                     "app id, a project id, a subject id). Required for everything "
+                     "except what='all'."))
+    project_id: str = Field(
+        default="",
+        description="Only for what='evidence': the project the conclusion belongs to.")
+
+
 def _entry_written(e: dict) -> str:
     return age(e.get("edited_at") or e.get("distilled_at"))
 

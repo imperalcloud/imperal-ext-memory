@@ -31,7 +31,11 @@ log = logging.getLogger("memory-index")
 # all. It is an inline collapsible editor the browser opens by itself, so it
 # needs no param, no request and no re-render. Only the two destructive
 # confirmations still travel as state.
-_VIEW_STATE = ("repo", "section", "forget", "confirm", "node_id", "token", "cat", "delete_fact", "lifecycle")
+# ``fwhat``/``fkey``/``fproj`` name the thing a forget confirmation in the
+# "Everything Webbee holds" section is about (forget_memory's what/key/
+# project_id); ``token`` binds that confirmation to it the same way.
+_VIEW_STATE = ("repo", "section", "forget", "confirm", "node_id", "token", "cat", "delete_fact", "lifecycle",
+               "fwhat", "fkey", "fproj")
 
 
 def _nav(_omit: tuple = (), **state):

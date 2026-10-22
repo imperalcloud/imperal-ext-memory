@@ -18,7 +18,9 @@ validator's 300-line ceiling); this module re-exports them so that importing
   handlers_reads    list_repos / get_index / list_notes
   handlers_explain  explain_memory
   handlers_writes   add_note / edit_note / delete_note
-  handlers_purge    delete_repo — erases one repo's memory entirely
+  handlers_purge    delete_repo — erases everything of one repo, verified
+  handlers_everything  memory_overview / forget_memory — the whole memory,
+                    and the one verified way to forget any part of it
   handlers_contract_graph  get_cross_repo_contract_graph — endpoints/schemas
                     linked across every indexed repo
 """
@@ -30,6 +32,7 @@ from handlers_params import (  # noqa: F401
     DeleteRepoParams,
     EditNoteParams,
     EmptyParams,
+    ForgetMemoryParams,
     RepoParams,
     _entry_written,
     _notes_payload,
@@ -47,6 +50,7 @@ from handlers_writes import (  # noqa: F401
     fn_edit_note,
 )
 from handlers_purge import fn_delete_repo  # noqa: F401
+from handlers_everything import fn_forget_memory, fn_memory_overview  # noqa: F401
 from handlers_contract_graph import (  # noqa: F401
     ContractGraphParam,
     fn_get_cross_repo_contract_graph,
@@ -71,6 +75,7 @@ __all__ = [
     "EmptyParams", "RepoParams", "fn_list_repos", "fn_get_index",
     "fn_list_notes", "fn_explain_memory", "fn_add_note", "fn_edit_note",
     "fn_delete_note", "fn_delete_repo",
+    "ForgetMemoryParams", "fn_memory_overview", "fn_forget_memory",
     "ContractGraphParam", "fn_get_cross_repo_contract_graph",
     "ListUserFactsParams", "AddUserFactParams", "EditUserFactParams", "DeleteUserFactParams",
     "fn_list_user_facts", "fn_add_user_fact", "fn_edit_user_fact", "fn_delete_user_fact",

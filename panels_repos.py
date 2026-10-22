@@ -11,8 +11,9 @@ import logging
 
 from imperal_sdk import ui
 
-from app import _user_id, age, ext, repo_name
+from app import _user_id, age, ext, load_everything, repo_name
 from memory_client import memory_api
+from memory_places import describe, is_orphan, place_title, places, repo_key_of
 from panels_common import _empty, _err, _inventory, _nav
 
 log = logging.getLogger("memory-index")
@@ -30,11 +31,26 @@ async def repos_panel(ctx, **kwargs):
         log.error("repos panel load error: %s", e)
         return _err("Could not load your repo memory — try again shortly.")
 
+    # The whole memory, so memory left over from a deleted repo is listed too
+    # (fail-soft: an outage only drops that group, never the inventory).
+    listing = await load_everything(ctx)
+    everything = ui.Button(label="Everything Webbee holds", variant="primary", icon="Database",
+                           on_click=_nav(section="everything"))
+    leftovers = [ui.ListItem(
+        id=str(p.get("place")), title=place_title(p),
+        subtitle=(f"code index deleted — memory left over · {int(p.get('total') or 0):,} records: "
+                  f"{describe(p.get('counts') or {}, limit=3)}"),
+        on_click=_nav(repo=repo_key_of(p)))
+        for p in places(listing) if is_orphan(p)]
+
     if not rows:
-        return _empty(
+        empty = _empty(
             "No repo memory yet",
             "Open a repository in the Webbee terminal agent. The code index it "
             "builds and the notes it distils show up here automatically.")
+        extra = [ui.Section(title="Memory left from deleted repos", children=[ui.List(items=leftovers)])] \
+            if leftovers else []
+        return ui.Stack(direction="v", gap=2, children=[empty, everything, *extra])
 
     try:   # the vault's code catalog: where each repo lives, how it is reached, how fresh it is
         catalog = {str(c.get("repo_key")): c for c in ((await memory_api(ctx).code_repos()) or {}).get("repos") or []
@@ -54,7 +70,8 @@ async def repos_panel(ctx, **kwargs):
                 ui.Stat(label="With notes", value=str(noted)),
                 ui.Stat(label="Notes", value=str(total_notes)),
             ]),
-            ui.Button(label="User & Workspace Facts", variant="primary", icon="UserCheck",
+            everything,
+            ui.Button(label="User & Workspace Facts", variant="secondary", icon="UserCheck",
                       on_click=_nav(section="user_memory")),
             ui.Button(label="How is this stored?", variant="secondary", icon="HelpCircle",
                       # Routed through the memory panel as a section: a second
@@ -91,4 +108,7 @@ async def repos_panel(ctx, **kwargs):
         ))
 
     children.append(ui.Section(title="Repositories", children=[ui.List(items=items)]))
+    if leftovers:
+        children.append(ui.Section(title="Memory left from deleted repos",
+                                   children=[ui.List(items=leftovers)]))
     return ui.Stack(direction="v", gap=2, children=children)
