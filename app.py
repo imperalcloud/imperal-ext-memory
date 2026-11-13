@@ -54,7 +54,7 @@ MAX_ENTRIES = 40                        # core.repo_memory.MAX_ENTRIES
 NOTE_CHARS = 400                        # core.repo_memory._NOTE_CHARS
 
 ext = Extension(
-    "memory-index", version="1.3.1",
+    "memory-index", version="1.3.2",
     # Federal-rigor scope surface (I-SCOPES-DECLARED-NOT-WILDCARD): this app
     # reads the caller's own code index and edits the caller's own durable
     # notes — declare exactly that, never a wildcard, for a system app that
@@ -265,20 +265,34 @@ def matches(d: dict, want: str) -> bool:
     return want in str(d.get("_repo_key", "")).lower() or want in str(d.get("repo_root", "")).lower()
 
 
+def _root_name(d: dict) -> str:
+    return str(d.get("repo_root", "")).rstrip("/").rsplit("/", 1)[-1].lower()
+
+
 def pick(items: list[dict], want: str) -> dict | None:
-    """Resolve a repo selector: exact repo_key, or a fragment of key/path."""
+    """Resolve a repo selector: an exact repo_key, then an exact folder name or path, then a fragment of key/path that
+    only ONE repo has. Live 2026-11-13: "imperal-cloud-main" took the first repo whose path merely contained it
+    (webbee's), so a note landed on another repo; an ambiguous fragment now resolves to none (ambiguous() names them)."""
     if not items:
         return None
-    w = (want or "").strip().lower()
+    w = (want or "").strip().lower().rstrip("/")
     if not w:
         return items[0]
-    for d in items:
-        if w == str(d.get("_repo_key", "")).lower():
-            return d
-    for d in items:
-        if matches(d, w):
-            return d
-    return None
+    for test in (lambda d: w == str(d.get("_repo_key", "")).lower(),
+                 lambda d: w == str(d.get("repo_root", "")).rstrip("/").lower(),
+                 lambda d: w == _root_name(d)):
+        hit = [d for d in items if test(d)]
+        if hit:
+            return hit[0]
+    frag = [d for d in items if matches(d, w)]
+    return frag[0] if len({str(d.get("_repo_key", "")) for d in frag}) == 1 else None
+
+
+def ambiguous(items: list[dict], want: str) -> list[dict]:
+    """The repos a fragment fits when it fits more than one (pick() then resolves to none)."""
+    w = (want or "").strip().lower().rstrip("/")
+    frag = [d for d in items if w and matches(d, w)]
+    return frag if len({str(d.get("_repo_key", "")) for d in frag}) > 1 else []
 
 
 def known_repos(items: list[dict]) -> str:

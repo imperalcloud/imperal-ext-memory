@@ -54,6 +54,9 @@ class AddUserFactParams(BaseModel):
     )
 
 
+FACT_SCOPES = ("", "global", "task", "surface")
+
+
 class EditUserFactParams(BaseModel):
     fact_id: str = Field(description="Unique ID of the fact to update")
     fact: str = Field(description=f"Updated fact text (max {MAX_FACT_CHARS} chars)")
@@ -122,6 +125,10 @@ async def fn_add_user_fact(ctx, params: AddUserFactParams) -> ActionResult:
     clean_text = sanitize_fact(params.fact)
     if not clean_text:
         return ActionResult.error("Fact text is empty after sanitization.")
+    if (params.scope or "").strip().lower() not in FACT_SCOPES:
+        # live 2026-11-13: scope="wpanel" was stored as given and read back as "global" -- say what is allowed instead
+        return ActionResult.error(f"scope must be one of: global, task, surface (or empty to decide from the fact); "
+                                  f"got '{params.scope}'")
 
     mem = await load_user_memory(ctx, uid)
     facts: list[dict] = mem.get("facts", [])

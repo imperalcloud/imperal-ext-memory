@@ -258,3 +258,28 @@ def test_a_distilled_note_with_path_citations_is_recalled():
     cites = [{"path": "app/billing/service.py", "symbol": "charge"}, {"path": "app/x.py", "symbol": ""}, "notes.md"]
     assert [citation_text(c) for c in cites] == ["app/billing/service.py:charge", "app/x.py", "notes.md"]
     assert score_text_relevance(tokenize("billing charge"), "billing retries twice", cites) > 0
+
+
+# ── 2026-11-13: a note lands on the repo asked for; a fact's scope is one the store knows ──
+
+def test_pick_prefers_the_exact_folder_over_a_path_that_merely_contains_it():
+    items = [{"_repo_key": "k_webbee", "repo_root": "/x/imperal-cloud-main/webbee"},
+             {"_repo_key": "k_main", "repo_root": "/x/imperal-cloud-main"}]
+    assert app_mod.pick(items, "imperal-cloud-main")["_repo_key"] == "k_main"
+    assert app_mod.pick(items, "k_webbee")["_repo_key"] == "k_webbee"
+    assert app_mod.pick(items, "/x/imperal-cloud-main/webbee")["_repo_key"] == "k_webbee"
+
+
+def test_pick_refuses_a_fragment_that_fits_several_repos():
+    items = [{"_repo_key": "k1", "repo_root": "/home/a/proj-one"},
+             {"_repo_key": "k2", "repo_root": "/home/a/proj-two"}]
+    assert app_mod.pick(items, "proj") is None
+    assert {d["_repo_key"] for d in app_mod.ambiguous(items, "proj")} == {"k1", "k2"}
+    assert app_mod.pick(items, "one")["_repo_key"] == "k1"
+
+
+@pytest.mark.asyncio
+async def test_add_user_fact_refuses_an_unknown_scope(make_ctx):
+    import handlers_user_mem as um
+    res = await um.fn_add_user_fact(make_ctx(), um.AddUserFactParams(fact="deploys go through the panel", scope="wpanel"))
+    assert res.status == "error" and "global, task, surface" in str(res.error)

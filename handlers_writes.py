@@ -13,6 +13,7 @@ from app import (
     MAX_ENTRIES,
     ActionResult,
     _user_id,
+    ambiguous,
     chat,
     known_repos,
     load_repo_memory,
@@ -56,6 +57,10 @@ async def fn_add_note(ctx, params: AddNoteParams) -> ActionResult:
             idx = pick(indexes, params.repo)
             if idx is None:
                 pool = mems + indexes
+                many = ambiguous(pool, params.repo)
+                if many:
+                    return ActionResult.error(
+                        f"'{params.repo}' fits several repos -- pass one's key or full path: {known_repos(many)}")
                 return ActionResult.error(
                     f"No repo matches '{params.repo}'. Known: {known_repos(pool)}"
                     if params.repo else
