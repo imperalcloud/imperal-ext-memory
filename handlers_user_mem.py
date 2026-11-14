@@ -128,7 +128,8 @@ async def fn_add_user_fact(ctx, params: AddUserFactParams) -> ActionResult:
     if (params.scope or "").strip().lower() not in FACT_SCOPES:
         # live 2026-11-13: scope="wpanel" was stored as given and read back as "global" -- say what is allowed instead
         return ActionResult.error(f"scope must be one of: global, task, surface (or empty to decide from the fact); "
-                                  f"got '{params.scope}'")
+                                  f"got '{params.scope}'. A fact about one project or repository is a repo note "
+                                  "(add_note with that repository) -- it is then shown with that repository only")
 
     mem = await load_user_memory(ctx, uid)
     facts: list[dict] = mem.get("facts", [])
